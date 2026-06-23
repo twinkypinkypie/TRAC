@@ -1,0 +1,272 @@
+﻿
+TRAC
+Treinador de Reação Adaptativo e Contextual
+Manual Técnico de Desenvolvimento
+v2.0  -  Documento Consolidado (Modos A-H)
+
+
+Arquitetura: Desktop Nativo  |  Histórico: Local (SQLite)  |  Progressão: Manual
+
+
+1. Visão Geral do Ecossistema
+O TRAC é um sistema de treinamento de tempo de reação de alta precisão, projetado para rodar como aplicativo desktop nativo. Sua arquitetura é construída em torno de três princípios fundamentais:
+
+• Timing Real: Precisão de timing em nível de microssegundo - impossível em ambiente web ou Python puro.
+• Controle Manual: Controle total dos parâmetros pelo usuário - sem progressão automática.
+• TRNG: Aleatoriedade verdadeira baseada em entropia de hardware (Hash de Caos).
+
+1.1 Stack Tecnológica Recomendada
+A migração do Python é um requisito técnico, não uma preferência. O GIL (Global Interpreter Lock) e o garbage collector introduzem jitter de timing imprevisível - incompatível com um treinador de reação preciso.
+
+ComponenteTecnologia RecomendadaJustificativaEngine principalC++ com SDL2Timing em microssegundos, acesso direto a hardware de áudio e vídeoAlternativaRust (winit + wgpu)Segurança de memória, desempenho equivalente, curva de aprendizado maiorBanco de dadosSQLiteLocal, zero configuração, performático com meses de históricoTRNGPython (processo separado)Preserva o código existente; comunica via socket local com o app principalSincronização de telaV-Sync via SDL2Obrigatório para Priming Subliminar e Modo F
+O TRNG existente em Python pode ser mantido como processo separado, enviando seeds via socket local (ex: localhost:9999) para o app principal. Isso preserva o trabalho feito sem comprometer o timing do engine.
+
+1.2 Arquitetura de Interface: Duas Camadas
+Com público geral e foco em profundidade, a UI precisa de duas camadas que leem e escrevem no mesmo arquivo de configuração:
+
+CamadaDescriçãoPúblicoModo GuiadoUsuário escolhe um perfil (Atleta, Gamer, Foco Cognitivo). Sistema configura parâmetros automaticamente.Iniciantes, usuários casuaisModo LaboratórioPainel avançado com controle fino de todas as variáveis. Expõe a configuração completa.Usuários avançados, pesquisadores
+1.3 Roadmap de Fases
+A ordem de implementação é crítica. Features avançadas dependem da infraestrutura construída nas fases anteriores.
+
+FaseEntregaPré-requisitoFase 1 - FundaçãoMigração de linguagem, SQLite local, UI duas camadas, TRNG via socket-Fase 2 - Novos ModosModo F (Ghost), Modo G (Pós-Erro), Modo H (Fadiga), dashboard de históricoFase 1 completaFase 3 - Camada AvançadaPriming Subliminar, Multissensorial Assimétrico, Baseline Dinâmica, Modo Laboratório completoFase 2 completaFase FuturaModo I: detecção de movimento corporal via câmera (resposta motora real)Fase 3 + pesquisa de CV
+Construir as Fases 2-3 sem a Fase 1 significa calibrar baselines com dados imprecisos. O erro se propaga para todo o histórico e nunca é recuperável.
+
+
+2. Modos de Treinamento - Base (A-E)
+MODO A  Reação de Escolha Simbólica   [IMPLEMENTADO]
+Otimiza a velocidade de processamento cognitivo e a precisão na associação estímulo-resposta. Treina a via ventral (identificação do que é o estímulo).
+
+VariávelTipoDescriçãoTECLAS_ALVOSet<Key>Conjunto de teclas mapeadas (ex: W, A, S, D). Mínimo 2, máximo 8.LIMITE_TRC_IDEALint (ms)Meta de tempo adaptativa. O sistema sinaliza sucesso quando abaixo deste valor.WAIT_TIME_RANDOMrange (s)Faixa de espera antes do estímulo (ex: 0.5-2.0s). Gerada pelo TRNG.ERROR_PENALTY_TIMEfloat (s)Tempo adicional de espera após erro de escolha. Reforço negativo leve.
+O TRNG deve gerar o WAIT_TIME_RANDOM usando o Hash de Caos. Intervalo fixo permite que o cérebro antecipe o estímulo, invalidando o treino.
+
+MODO B  Reação Antecipatória e Inibição   [IMPLEMENTADO]
+Treina o controle inibitório e a supressão de impulsos motores prematuros. Ativa o córtex pré-frontal como freio sobre o sistema motor.
+
+VariávelTipoDescriçãoALERT_SIGNAL_DURATIONint (ms)Duração do sinal de "preparar" antes da ação. Valores menores aumentam dificuldade.FALSE_START_PENALTYenumPenalidade por clique prematuro: RESET (reinicia ciclo), MISS (conta como erro), BLOCK (pausa forçada).ACTION_SIGNAL_VARIATIONboolSe true, alterna cor/som do sinal de ação para evitar que o cérebro antecipe pelo canal errado.
+MODO C  Reação Espacial Periférica   [IMPLEMENTADO]
+Treina a detecção de movimento e posição usando a via dorsal e visão periférica. Superior a sistemas de luzes físicas pela posição totalmente aleatória.
+
+VariávelTipoDescriçãoGRID_SIZEenum (%)Área da tela utilizada: 50%, 80%, 100%. 100% maximiza a ativação periférica.PERIPHERAL_ONLYboolSe true, estímulos nunca aparecem no centro (exclusão de zona foveal de 15%).STIMULUS_SIZEint (px)Diâmetro do círculo de luz. Menor = maior demanda de detecção periférica.POSITION_COUNTint | RANDOMNúmero de posições fixas ou RANDOM para posição totalmente aleatória via TRNG.
+MODO D  Carga Cognitiva e Overclock   [IMPLEMENTADO]
+Aumenta a densidade de processamento neural para induzir o estado de fluxo e dilatação temporal subjetiva. É o modo de maior demanda do sistema nervoso.
+
+VariávelTipoDescriçãoEVENT_DENSITYfloat (estím/s)Estímulos por segundo (0.5-5.0). Valores acima de 3.0 começam a induzir o estado de fluxo.STIMULUS_LIFESPANint (ms)Tempo de permanência do estímulo antes de desaparecer. Lifespan curto exige reação mais rápida.DISTRACTOR_RATIOfloat (0-1)Proporção de "iscas" (estímulos para não clicar). 0.5 = 50% de distrátores.BACKGROUND_NOISEfloat (0-1)Nível de interferência visual/sonora de fundo. Simula condições de campo com ruído real.
+MODO E  Oclusão Estroboscópica   [IMPLEMENTADO]
+Força a antecipação neural e reduz a dependência de feedback visual constante. Precursor direto do Modo F. Treina oclusão espacial.
+
+VariávelTipoDescriçãoSTROBE_FREQfloat (Hz)Frequência de oclusão. Valores baixos (1-3Hz) são mais fáceis; altos (8-12Hz) são avançados.DARK_TIME_RATIOfloat (0.1-0.9)Proporção do ciclo em que a tela fica preta. 0.7 = 70% do tempo sem informação visual.GAP_PHASEenumSincroniza o "pisca" com o aparecimento do estímulo: SYNC (aparece no claro), ASYNC (aparece no escuro - máxima dificuldade).
+
+3. Modos de Treinamento - Avançados (F-H)
+Os modos F, G e H representam a segunda geração do TRAC. Cada um adiciona uma camada neurocientífica que os modos A-E não cobrem.
+
+MODO F  Oclusão Temporal Preditiva - Ghost Mode   [PLANEJADO]
+Treina o cérebro a construir um modelo interno de física do mundo. Enquanto o Modo E treina oclusão espacial (a imagem some), o Modo F treina oclusão temporal (o objeto desaparece em movimento, e o cérebro deve prever onde ele estaria).
+
+Base Neurocientífica: Representational Momentum
+O fenômeno de Representational Momentum descreve como o cérebro extrapola trajetórias mesmo sem input visual. Atletas de elite não veem a bola onde ela está - eles a veem onde ela estará. Este modo treina exatamente esse mecanismo.
+
+Mecânica
+• Um objeto se move em uma trajetória configurável.
+• Em um ponto aleatório da trajetória (OCCLUSION_POINT), o objeto desaparece.
+• O usuário deve clicar no ponto exato onde o objeto estaria agora, baseando-se na velocidade e direção anteriores.
+• O sistema compara o clique com a posição calculada e retorna um score de precisão espacial.
+
+Variáveis
+VariávelTipoDescriçãoTRAJECTORY_TYPEenumLINEAR, CURVILINEAR, ACCELERATED, DECELERATED. Determina o modelo físico que o cérebro deve internalizar.OCCLUSION_POINTfloat (%)Porcentagem da trajetória onde o objeto desaparece (ex: 0.3 = desaparece aos 30% do percurso).PREDICTION_WINDOWint (px)Raio de tolerância do clique em pixels. Menor = mais exigente. Recomendado: começar em 60px.SPEED_VARIANCEboolSe true, a velocidade varia entre tentativas via TRNG. CRÍTICO: manter true para evitar que o usuário calcule em vez de perceber.OBJECT_TYPEenumCIRCLE, SQUARE, TRIANGLE. Formas diferentes ativam diferentes mecanismos de rastreamento visual.
+AVISO DE IMPLEMENTAÇÃO: SPEED_VARIANCE deve ser true por padrão. Com velocidade constante, o usuário aprende a calcular a posição matematicamente em vez de desenvolver percepção antecipativa. Isso invalida o objetivo do modo.
+
+PRÉ-REQUISITO TÉCNICO: O Modo F requer controle preciso do framerate (V-Sync via SDL2). A posição do objeto deve ser calculada frame a frame com interpolação. Em Python, o jitter de timing tornaria as trajetórias inconsistentes. Implementar somente após a migração de linguagem.
+
+MODO G  Resiliência Pós-Erro   [PLANEJADO]
+Treina a recuperação cognitiva após falhas. A janela imediatamente após um erro é onde ocorre maior interferência cognitiva: ruminação, antecipação excessiva e hipervigiliância. Este modo mensura e treina especificamente essa vulnerabilidade.
+
+Base Neurocientífica
+Atletas de elite não erram menos que amadores - eles se recuperam mais rápido do erro. A pesquisa em neurociência do esporte documenta que o TRC da tentativa imediatamente após um erro é consistentemente 15-40ms mais alto que a média basal. Este delta é o "custo do erro", e é treinável.
+
+Mecânica
+• O sistema monitora o TRC de cada tentativa logo após um erro (janela pós-erro: 1 tentativa).
+• Calcula o Índice de Recuperação (IR): diferença entre TRC pós-erro e TRC médio basal.
+• Se IR > RECOVERY_THRESHOLD, um protocolo de reset cognitivo é ativado antes da próxima tentativa.
+• O protocolo consiste em 800ms de tela neutra + tom de baixa frequência (432Hz), forçando desativação do modo ruminativo.
+
+Variáveis
+VariávelTipoDescriçãoRECOVERY_THRESHOLDint (ms)Delta máximo tolerado entre TRC pós-erro e TRC médio. Se excedido, ativa protocolo de reset.RESET_DURATIONint (ms)Duração da tela de reset cognitivo (recomendado: 800ms). Muito curto não efetiva o reset; muito longo quebra o ritmo.RESET_TONE_FREQfloat (Hz)Frequência do tom do protocolo de reset. 432Hz demonstrou maior efeito de dessativação em estudos de biofeedback sonoro.IR_TRACKINGboolSe true, registra o Índice de Recuperação no histórico de sessão para análise longitudinal.POST_ERROR_WINDOWintNúmero de tentativas monitoradas após cada erro (padrão: 1). Pode ser expandido para 3 em treino avançado.
+Métrica de exportação: IR médio da sessão é um dos indicadores mais valiosos do histórico. Atletas com IR < 20ms têm consistência de elite. Exibir este dado no dashboard de histórico com destaque.
+
+MODO H  Bio-Feedback de Fadiga Neural   [PLANEJADO]
+Monitora o estado do sistema nervoso em tempo real via análise do Desvio Padrão (DP) do TRC e ajusta a sessão de acordo com o diagnóstico de fadiga ou desatenção.
+
+Base Neurocientífica
+O DP do TRC é um proxy confiável da estabilidade do sistema nervoso: DP baixo indica sistema em estado ótimo; DP crescente indica desregulação. Porém, desregulação tem duas causas com respostas opostas - fadiga real e desatenção/tédio. Responder da mesma forma a ambas é contraproducente.
+
+Diagnóstico Diferencial - Tabela de Decisão
+Padrão DetectadoDiagnóstico ProvávelResposta do SistemaDP aumenta + TRC médio sobeFadiga neural realReduzir dificuldade, tema visual frio/calmo, sugerir pausaDP aumenta + TRC médio estávelDesatenção / distraçãoEstímulo de alta intensidade: cores azul/branco frio, volume aumentadoDP aumenta + TRC médio caiRisco de overtrainingEncerrar sessão com alerta vermelho. Não permitir continuação por 5min.DP estável + TRC médio caiEstado de fluxo ativoManter configuração. Não intervir.
+Baseline Dinâmica - Cálculo
+O Modo H compara o DP atual com a baseline histórica do usuário, não apenas com a sessão atual. A baseline é calculada por modo (não global) para evitar falsos positivos.
+
+baseline_dp[modo] = média_ponderada(dp_sessões_anteriores[modo], peso_recência=0.7)
+fadiga_detectada = dp_atual > baseline_dp[modo] * FATIGUE_SENSITIVITY
+
+Variáveis
+VariávelTipoDescriçãoFATIGUE_SENSITIVITYfloat (1.0-2.0)Multiplicador de detecção. 1.15 = ativa com 15% de aumento no DP. Padrão recomendado: 1.15.BASELINE_SESSIONSintNúmero de sessões anteriores usadas para calcular a baseline (recomendado: 10 sessões mais recentes por modo).FATIGUE_RESPONSE_MODEenumAUTO (detecta e decide pela tabela acima), STIMULATE (sempre aumenta intensidade), PROTECT (sempre reduz).OVERTRAINING_LOCKOUTint (min)Tempo de bloqueio após detecção de overtraining. Padrão: 5 minutos. Não bypassável.HIGH_FREQ_COLORScolor pairPar de cores para o modo de estimulação (desatenção). Padrão: #1A6EFF + #FFFFFF.
+AVISO: Aumentar intensidade visual/sonora em caso de fadiga real (TRC médio subindo) vai contra a biologia e pode acelerar o overtraining. O FATIGUE_RESPONSE_MODE AUTO deve ser o padrão para usuários que não entendem a distinção.
+
+
+4. Técnicas Avançadas Globais
+As técnicas a seguir não são modos independentes, mas camadas que podem ser ativadas sobre qualquer modo base (A-H). Pertencem à Fase 3 do roadmap.
+
+4.1 Priming Perceptual Subliminar
+O cérebro pode ser preparado para uma reação antes mesmo de processar o estímulo conscientemente. Esta técnica usa priming espacial para ativar antecipadamente os neurônios da região visual onde o alvo surgirá.
+
+Base Neurocientífica: Aprendizagem Hebbiana
+Neurônios que disparam juntos, conectam-se. Ao ativar uma região visual antes do estímulo, a via neural já está parcialmente excitada quando o sinal real chega. O resultado é redução mensurável do TRC por diminuição do tempo de processamento cortical.
+
+Implementação Agnóstica de Hardware
+A abordagem de flash de 1 frame (7ms a 144Hz) depende do monitor. Em telas de 60Hz, o flash dura 16ms e se torna perceptível conscientemente, invalidando o efeito subliminar. A implementação correta usa priming por atenção espacial:
+
+• Antes do estímulo, exibe um pulso de brilho (oscilação de luminosidade de 200-300ms) na zona da tela onde o alvo surgirá.
+• Não é um flash - é uma variação suave de luminância que direciona a atenção foveal sem ser um "aviso" perceptível.
+• Funciona em qualquer monitor independente do refresh rate.
+• O efeito neurocientífico é equivalente: ativa a região visual antes do estímulo real.
+
+Variáveis
+VariávelTipoDescriçãoSPATIAL_PRIME_INTENSITYfloat (0-1)Intensidade do pulso de brilho. 0 = desligado. 0.1-0.3 = subliminar. Acima de 0.5 fica perceptível.PRIME_DURATIONint (ms)Duração do pulso (200-300ms recomendado). Calculado para terminar quando o estímulo real aparece.PRIME_ZONE_RADIUSint (px)Raio da zona de priming ao redor da posição futura do estímulo.
+PRÉ-REQUISITO: Requer V-Sync ativo para que o pulso de brilho seja sincronizado com precisão ao ciclo de refresh da tela. Implementar somente após migração de linguagem e configuração de V-Sync via SDL2.
+
+4.2 Integração Multissensorial Assimétrica
+O cérebro integra áudio e vídeo de formas diferentes dependendo da tarefa. Esta técnica divide os canais sensoriais por função: áudio para quando, visual para onde. A dessincronização deliberada forçaa o cérebro a recalibrar sua percepção de simultaneidade temporal.
+
+Base Neurocientífica: Calibração de Simultaneidade Temporal
+Treinamentos militares e de aviação usam exatamente esta abordagem para preparar pilotos para lidar com sensores de alta velocidade com latências diferentes. Forçar o cérebro a processar estímulos intencionalmente dessincronizados recalibra a janela de simultaneidade temporal - o intervalo no qual dois eventos são percebidos como simultâneos.
+
+Dois Sub-modos
+Sub-modoMecânicaObjetivo4.2A - Dessincronização AVSom chega X ms antes da imagem. Delta é progressivo (começa em 20ms, vai até 80ms).Recalibração da janela de simultaneidade. Treina o cérebro a confiar mais em um canal que no outro.4.2B - Conflito CrossmodalSom indica direção errada (ex: som à esquerda, estímulo à direita).Resistência à interferência sensorial. Crucial para esportes com multidão ou ambientes de combate com desorientação.
+Variáveis
+VariávelTipoDescriçãoAUDIO_VISUAL_DELTAint (ms)Avanço do áudio em relação ao visual (0-80ms). 0 = sincronizado. Aumentar progressivamente.CROSSMODAL_CONFLICTboolSe true, áudio pode apontar para posição incorreta. Ativa o sub-modo 4.2B.CONFLICT_RATIOfloat (0-1)Proporção de tentativas com conflito crossmodal ativo quando CROSSMODAL_CONFLICT = true.RHYTHM_ACCELERATIONfloatTaxa de aceleração do ritmo sonoro antes do clique. Fornece informação de timing ao usuário.
+AVISO IMPORTANTE: Nos primeiros dias de treino com AUDIO_VISUAL_DELTA ativo, o TRC vai piorar antes de melhorar. Isso é esperado e deve ser documentado para o usuário no onboarding, para que não seja interpretado como regressão ou bug.
+
+PRÉ-REQUISITO TÉCNICO: O controle preciso do delta de áudio em ms requer acesso a baixo nível ao driver de áudio (ex: PortAudio em C++). Em Python/Pygame, o erro do delta é de ±5-15ms, o que invalida o treino em faixas abaixo de 30ms.
+
+
+5. Motor de Aleatoriedade: Hash de Caos (TRNG)
+Para garantir que o cérebro não mapeie padrões, o TRAC utiliza um sistema de aleatoriedade baseado em entropia de hardware - True Random Number Generator (TRNG). Pseudo-aleatoriedade baseada em seeds fixas pode ser inconscientemente aprendida pelo cérebro após centenas de tentativas.
+
+5.1 Componentes do Hash de Caos
+Fonte de EntropiaDescriçãoContribuiçãoNanoseconds TimestampTempo exato da última reação do usuário em nanosegundos.Alta variância, dependente do usuárioCPU JitterMicro-variações no tempo de processamento do ciclo de clock.Física do hardware, imprevisívelMemory StateEndereço de memória ou uso de RAM no instante do disparo.Estado do sistema operacionalMouse JitterMicro-movimentos do cursor detectados entre os estímulos.Fisiologia do usuário (tremor natural)
+5.2 Arquitetura: TRNG como Processo Separado
+O TRNG existente em Python é preservado como processo separado. O engine principal em C++ solicita uma nova seed via socket local sempre que uma nova tentativa começa.
+
+# Python TRNG - processo separado
+import socket, struct, time, ctypes
+
+def hash_of_chaos():
+    ts = time.time_ns()
+    cpu_jitter = time.perf_counter_ns() ^ time.monotonic_ns()
+    mem_state = id(object())
+    return (ts ^ cpu_jitter ^ mem_state) & 0xFFFFFFFF
+
+# Servidor socket local na porta 9999
+with socket.socket() as s:
+    s.bind(("127.0.0.1", 9999))
+    s.listen()
+    while True:
+        conn, _ = s.accept()
+        seed = hash_of_chaos()
+        conn.send(struct.pack("I", seed))
+        conn.close()
+
+O Mouse Jitter deve ser capturado pelo engine principal em C++ e enviado junto com o request ao TRNG para máxima entropia. Protocolo sugerido: o engine envia 4 bytes de jitter do mouse, o TRNG responde com 4 bytes de seed combinada.
+
+
+6. Variáveis de Controle Global
+Estas variáveis afetam todos os modos simultaneamente. Constituem o núcleo do "Modo Laboratório" da UI avançada.
+
+VariávelTipoDescriçãoImpacto NeuralNEURO_REINFORCEMENTfloat (0-1)Intensidade do feedback de sucesso (som, animação, cor).Condicionamento dopaminérgico. Reforça a via neural do acerto.ADAPTIVE_STRICTNESSfloat (0-1)Quão rápido o sistema aumenta a dificuldade após sequências de sucesso.Controla a curva de aprendizado. Alto = progressão agressiva.SENSORY_MODEenumVISUAL, AUDITORY, HYBRID. Define o canal de entrada principal.HYBRID ativa integração multissensorial mesmo sem os módulos avançados.RECOVERY_VIGILANCEint (ms)Tempo de espera forçado após erros.Treina resiliência emocional e foco pós-falha. Base do Modo G.
+7. Estrutura do Banco de Dados Local (SQLite)
+O histórico é armazenado localmente em SQLite. Nenhum dado é enviado a servidores. A progressão é sempre decisão manual do usuário - o banco de dados serve como espelho analítico, não como motor de decisão.
+
+7.1 Schema Principal
+CREATE TABLE sessions (
+  id INTEGER PRIMARY KEY,
+  timestamp INTEGER,     -- Unix timestamp de início
+  mode TEXT,             -- "A", "B", "C", "D", "E", "F", "G", "H"
+  config_json TEXT,      -- Snapshot JSON de todas as variáveis da sessão
+  duration_ms INTEGER    -- Duração total da sessão
+);
+
+CREATE TABLE attempts (
+  id INTEGER PRIMARY KEY,
+  session_id INTEGER REFERENCES sessions(id),
+  attempt_number INTEGER,
+  trc_ms INTEGER,        -- Tempo de reação em ms
+  correct BOOLEAN,       -- Acerto ou erro
+  post_error BOOLEAN,    -- Se é a tentativa imediatamente após um erro
+  stimulus_x INTEGER,    -- Posição X do estímulo (px)
+  stimulus_y INTEGER,    -- Posição Y do estímulo (px)
+  click_x INTEGER,       -- Posição X do clique (px) - para Modo F
+  click_y INTEGER        -- Posição Y do clique (px) - para Modo F
+);
+
+7.2 Queries de Análise Essenciais
+-- TRC médio por modo (últimas 10 sessões)
+SELECT mode, AVG(trc_ms) as avg_trc, STDEV(trc_ms) as dp
+FROM attempts a JOIN sessions s ON a.session_id = s.id
+WHERE s.timestamp > (strftime("%s","now") - 864000)
+GROUP BY mode;
+
+-- Índice de Recuperação médio (Modo G)
+SELECT AVG(post_error_trc - baseline_trc) as recovery_index
+FROM (
+  SELECT trc_ms as post_error_trc,
+    (SELECT AVG(trc_ms) FROM attempts WHERE session_id = a.session_id),
+  FROM attempts a WHERE post_error = true
+);
+
+SQLite não tem função STDEV nativa. Implementar como função definida pelo usuário em C++ via sqlite3_create_function() ou calcular no código da aplicação após a query.
+
+
+8. Progressão Manual - Guia de Referência
+Toda progressão é decisão manual do usuário. O sistema fornece os dados; o usuário decide quando avançar. O guia abaixo é uma referência, não uma regra automática.
+
+NívelModosCritério Sugerido para AvançarBaseModo A (2 teclas)Precisão > 95% com TRC médio abaixo do LIMITE_TRC_IDEAL por 3 sessões consecutivas.IntermediárioModo B + Modo CTRC médio abaixo de 250ms em ambos os modos. DP < 40ms.AvançadoModo D (Densidade 2.0)Manter precisão > 85% com EVENT_DENSITY = 2.0. Sem colapso de DP.EliteModo E (50%) + Modo D (3.0)Ponto de entrada para dilatação temporal subjetiva. Não há critério fixo - é uma experiência.PesquisaModos F + G + H ativosUsuário com histórico > 20 sessões em Modo Elite. Dados suficientes para baseline confiável.
+9. Limitações Conhecidas e Escopo Futuro
+
+9.1 Limitação Central: Cadeia Motora
+O TRAC treina os dois primeiros elos da cadeia de reação completa: percepção e decisão. O terceiro elo - execução motora com o corpo - não é coberto pelo sistema atual.
+
+EloTreinado pelo TRAC?Como ComplementarPercepção (detecção do estímulo)Sim - todos os modos-Decisão (escolha da resposta)Sim - Modos A, B, D-Execução Motora (movimento corporal)NãoCombinar com sistemas de luzes físicas (Blazepod, FitLight) para transferência motora.
+9.2 Roadmap Futuro
+ModoDescriçãoPré-requisitoModo I - Resposta MotoraDetecção de movimento corporal via câmera como substituto do clique de mouse. Completa a cadeia percepção → decisão → execução.Pesquisa em Computer Vision + Fase 3 completaPerfis de AtletaConfigurações pré-definidas por modalidade (goleiro, tenista, piloto) para o Modo Guiado.Fase 2 completa + dados de campoExportação de DadosExportação de histórico em CSV/JSON para análise externa ou compartilhamento com técnicos.Schema SQLite estabilizado
+
+10. Checklist de Implementação por Fase
+
+Fase 1 - Fundação
+• Migrar engine principal para C++ com SDL2 (ou Rust + winit).
+• Implementar TRNG Python como processo separado com socket local na porta 9999.
+• Criar schema SQLite conforme Seção 7.
+• Implementar UI de duas camadas (Modo Guiado + Modo Laboratório).
+• Configurar V-Sync via SDL2 (obrigatório para Fases 2 e 3).
+• Migrar Modos A-E para o novo engine e validar timing.
+
+Fase 2 - Novos Modos
+• Implementar Modo F com TRAJECTORY_TYPE LINEAR primeiro, depois expandir.
+• Implementar Modo G: rastreamento de tentativas pós-erro e protocolo de reset.
+• Implementar Modo H: cálculo de DP em tempo real e lógica de diagnóstico diferencial.
+• Implementar dashboard de histórico com queries da Seção 7.2.
+• Adicionar Índice de Recuperação ao relatório de sessão.
+
+Fase 3 - Camada Avançada
+• Implementar Priming Subliminar (Seção 4.1) com SPATIAL_PRIME_INTENSITY.
+• Implementar Integração Multissensorial - Sub-modo 4.2A primeiro (dessincronização AV).
+• Implementar Sub-modo 4.2B (conflito crossmodal).
+• Implementar Baseline Dinâmica por modo para o Modo H.
+• Completar Modo Laboratório com todos os controles de variáveis globais.
+
+
+
+TRAC v2.0 - Manual Técnico de Desenvolvimento
+Documento consolidado. Modos A-H + Técnicas Avançadas + Arquitetura.
+TRAC - Manual Técnico de Desenvolvimento   |   v2.0
+
+Página 1
+

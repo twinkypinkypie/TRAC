@@ -1,0 +1,29 @@
+{
+  "modo_a": {
+    "teclas": [
+      "W",
+      "A",
+      "S",
+      "D"
+    ],
+    "mouse_botoes": [],
+    "estimulos_simultaneos": 3,
+    "modo_resposta": "todos",
+    "limite_trc_ms": 300,
+    "wait_min_s": 0.1,
+    "wait_max_s": 0.2,
+    "penalidade_ms": 1000
+  },
+  "modo_b": {
+    "teclas": [
+      "SPACE",
+      "A",
+      "B"
+    ],
+    "mouse_botoes": [],
+    "nogo_ratio": 0.3,
+    "alert_min_ms": 500,
+    "alert_max_ms": 1500,
+    "false_start_penalty": "RESET"
+  }
+}
