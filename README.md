@@ -33,7 +33,7 @@ python validate_v2.py
 Arquivos principais:
 - `trac_shell_v3.py` — interface principal (Home / Histórico / Config)
 - `trac_modo_a_gui.py` — implementação do Modo A
-- `trng_server_v2.py` — servidor TRNG (porta 9999)
+- `csprng_server_v2.py` — servidor CSPRNG (porta 9999)
 - `trac_db.py` — banco SQLite local
 
 Notas:
