@@ -24,7 +24,7 @@ Executar interface:
 python trac_shell_v3.py
 ```
 
-Testar protocolo TRNG:
+Testar protocolo CSPRNG:
 
 ```bash
 python validate_v2.py
