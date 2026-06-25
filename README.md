@@ -12,10 +12,10 @@ Instalar dependências:
 python -m pip install -r requirements.txt
 ```
 
-Executar TRNG (recomendado em terminal separado):
+Executar CSPRNG (recomendado em terminal separado):
 
 ```bash
-python trng_server_v2.py
+python csprng_server_v2.py
 ```
 
 Executar interface:
