@@ -7,23 +7,34 @@
       "D"
     ],
     "mouse_botoes": [],
-    "estimulos_simultaneos": 3,
-    "modo_resposta": "todos",
+    "estimulos_simultaneos": 1,
+    "modo_resposta": "simples",
     "limite_trc_ms": 300,
-    "wait_min_s": 0.1,
-    "wait_max_s": 0.2,
+    "wait_min_s": 0.493,
+    "wait_max_s": 1.996,
     "penalidade_ms": 1000
   },
   "modo_b": {
     "teclas": [
-      "SPACE",
-      "A",
-      "B"
+      "SPACE"
     ],
     "mouse_botoes": [],
-    "nogo_ratio": 0.3,
+    "nogo_ratio": 0.1,
     "alert_min_ms": 500,
     "alert_max_ms": 1500,
-    "false_start_penalty": "RESET"
+    "false_start_penalty": "BLOCK"
+  },
+  "modo_c": {
+    "teclas": [
+      "SPACE"
+    ],
+    "mouse_botoes": [
+      "LEFT"
+    ],
+    "grid_size": 1.0,
+    "peripheral_only": true,
+    "fixation_cross": true,
+    "stimulus_size": 32,
+    "stimulus_lifespan_ms": 800
   }
 }

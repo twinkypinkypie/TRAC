@@ -104,9 +104,6 @@ class ModoBGUI(QWidget):
         self._t_block = QTimer(self); self._t_block.setSingleShot(True)
         self._t_block.timeout.connect(self._unblock)
 
-        self._t_start_reaction = QTimer(self); self._t_start_reaction.setSingleShot(True)
-        self._t_start_reaction.timeout.connect(self._start_reaction_timer_b)
-
         # ── Layout ────────────────────────────────────────────────────────────
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0); root.setSpacing(0)
@@ -368,9 +365,9 @@ class ModoBGUI(QWidget):
             self.lbl_status.setStyleSheet(
                 f"font-size:22px; font-weight:800; color:{TEXT_PRI};"
             )
-            # Agenda o registro de start_time para DEPOIS da renderização
-            self._t_start_reaction.start(0)
-            # Miss se não reagir em 1s
+            # repaint() síncrono — start_time registrado após render completo
+            self.sinal.repaint()
+            self.start_time = time.perf_counter()
             self._t_miss.start(1000)
         else:
             self.estado = Estado.NOGO
@@ -379,12 +376,7 @@ class ModoBGUI(QWidget):
             self.lbl_status.setStyleSheet(
                 f"font-size:22px; font-weight:800; color:{DANGER};"
             )
-            # Período NO-GO dura 800ms
             self._t_nogo.start(800)
-
-    def _start_reaction_timer_b(self):
-        """Registra o tempo de reação APÓS a renderização estar completa."""
-        self.start_time = time.perf_counter()
 
     def _nogo_success(self):
         """Usuário sobreviveu ao NO-GO sem reagir."""
@@ -418,7 +410,7 @@ class ModoBGUI(QWidget):
                         acerto=False, false_start=True, fase=fase)
 
         if penalidade == "RESET":
-            self._t_alert.stop(); self._t_nogo.stop(); self._t_miss.stop(); self._t_start_reaction.stop()
+            self._t_alert.stop(); self._t_nogo.stop(); self._t_miss.stop()
             self.lbl_result.setText(f"✗  False start [{inp}]  —  reiniciando")
             self.lbl_result.setStyleSheet(
                 f"font-size:16px; font-weight:700; color:{DANGER};"
@@ -426,7 +418,7 @@ class ModoBGUI(QWidget):
             self._t_next.start(self.cfg["penalidade_ms"])
 
         elif penalidade == "MISS":
-            self._t_alert.stop(); self._t_nogo.stop(); self._t_miss.stop(); self._t_start_reaction.stop()
+            self._t_alert.stop(); self._t_nogo.stop(); self._t_miss.stop()
             self.lbl_result.setText(f"✗  False start [{inp}]  —  erro contado")
             self.lbl_result.setStyleSheet(
                 f"font-size:16px; font-weight:700; color:{DANGER};"
@@ -434,7 +426,7 @@ class ModoBGUI(QWidget):
             self._t_next.start(self.cfg["penalidade_ms"])
 
         elif penalidade == "BLOCK":
-            self._t_alert.stop(); self._t_nogo.stop(); self._t_miss.stop(); self._t_start_reaction.stop()
+            self._t_alert.stop(); self._t_nogo.stop(); self._t_miss.stop()
             self.estado = Estado.BLOCKED
             self._set_sinal("blocked")
             self.lbl_status.setText("Bloqueado...")
