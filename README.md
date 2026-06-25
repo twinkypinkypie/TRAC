@@ -37,5 +37,5 @@ Arquivos principais:
 - `trac_db.py` — banco SQLite local
 
 Notas:
-- As configurações do Modo A são salvas em `trac_config.json` na mesma pasta.
-- Modos B–E estão marcados como "em breve"; ao clicar mostram um placeholder.
+- As configurações dos Modos A, B e C são salvas em `trac_config.json` na mesma pasta.
+- Modos D–E estão marcados como "em breve"; ao clicar mostram um placeholder.
