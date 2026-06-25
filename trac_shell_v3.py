@@ -22,6 +22,7 @@ from PyQt6.QtGui import QColor, QPalette, QCursor, QIntValidator
 
 from trac_modo_a_gui import ModoAGUI, DEFAULT_CONFIG
 from trac_modo_b_gui import ModoBGUI, DEFAULT_CONFIG_B
+from trac_modo_c_gui import ModoCGUI, DEFAULT_CONFIG_C
 from trac_db import init_db, salvar_sessao, listar_sessoes, exportar_csv
 import json
 import subprocess
@@ -63,7 +64,7 @@ DANGER     = "#E05252"
 MODOS = [
     {"letra": "A", "nome": "Escolha Simbólica",      "desc": "Associação estímulo-resposta",       "status": "ativo"},
     {"letra": "B", "nome": "Inibição Antecipatória", "desc": "Controle de impulsos motores",       "status": "ativo"},
-    {"letra": "C", "nome": "Periférico Espacial",    "desc": "Via dorsal e visão periférica",      "status": "em breve"},
+    {"letra": "C", "nome": "Periférico Espacial",    "desc": "Via dorsal e visão periférica",      "status": "ativo"},
     {"letra": "D", "nome": "Carga Cognitiva",        "desc": "Overclock e estado de fluxo",        "status": "em breve"},
     {"letra": "E", "nome": "Oclusão Estroboscópica", "desc": "Antecipação sem feedback visual",    "status": "em breve"},
     {"letra": "F", "nome": "Ghost Mode",             "desc": "Oclusão temporal preditiva",         "status": "em breve"},
@@ -665,9 +666,74 @@ class ConfigWidget(QWidget):
 
         lay.addWidget(sec_b)
 
+        # ── Seção: Modo C ─────────────────────────────────────────────────────
+        self._cfg_c = {**DEFAULT_CONFIG_C, **config_inicial.get("modo_c", {})}
+        lay.addWidget(self._section_label("MODO C — Periférico Espacial"))
+
+        sec_c = QFrame(); sec_c.setObjectName("configSection")
+        sc = QVBoxLayout(sec_c); sc.setContentsMargins(20, 18, 20, 18); sc.setSpacing(14)
+
+        sc.addWidget(self._label("Teclas de resposta (separadas por vírgula):"))
+        self.inp_teclas_c = QLineEdit(", ".join(self._cfg_c.get("teclas", [])))
+        self.inp_teclas_c.setPlaceholderText("Ex: SPACE")
+        self.inp_teclas_c.textChanged.connect(self._on_change)
+        sc.addWidget(self.inp_teclas_c)
+
+        sc.addWidget(self._label("Botões do mouse:"))
+        mouse_row_c = QHBoxLayout(); mouse_row_c.setSpacing(16)
+        self.chk_mouse_c = {}
+        for btn in ["LEFT", "RIGHT", "MIDDLE"]:
+            chk = QCheckBox(btn.capitalize())
+            chk.setChecked(btn in self._cfg_c.get("mouse_botoes", []))
+            chk.stateChanged.connect(self._on_change)
+            self.chk_mouse_c[btn] = chk
+            mouse_row_c.addWidget(chk)
+        mouse_row_c.addStretch()
+        sc.addLayout(mouse_row_c)
+
+        grid_row = QHBoxLayout(); grid_row.setSpacing(12)
+        grid_row.addWidget(self._label("Área de jogo (%):"))
+        self.cmb_grid = QComboBox()
+        self.cmb_grid.addItems(["50%", "80%", "100%"])
+        self.cmb_grid.setCurrentText(f"{int(self._cfg_c.get('grid_size', 1.0) * 100)}%")
+        self.cmb_grid.currentTextChanged.connect(self._on_change)
+        grid_row.addWidget(self.cmb_grid); grid_row.addStretch()
+        sc.addLayout(grid_row)
+
+        self.chk_periph = QCheckBox("Modo periférico (excluir zona foveal central)")
+        self.chk_periph.setChecked(self._cfg_c.get("peripheral_only", True))
+        self.chk_periph.stateChanged.connect(self._on_change)
+        sc.addWidget(self.chk_periph)
+
+        self.chk_fixation = QCheckBox("Exibir cruz de fixação central")
+        self.chk_fixation.setChecked(self._cfg_c.get("fixation_cross", True))
+        self.chk_fixation.stateChanged.connect(self._on_change)
+        sc.addWidget(self.chk_fixation)
+
+        size_row = QHBoxLayout(); size_row.setSpacing(12)
+        size_row.addWidget(self._label("Tamanho do estímulo (px):"))
+        self.spin_stim_size = QSpinBox()
+        self.spin_stim_size.setRange(8, 120); self.spin_stim_size.setFixedWidth(80)
+        self.spin_stim_size.setValue(self._cfg_c.get("stimulus_size", 32))
+        self.spin_stim_size.setSuffix(" px")
+        self.spin_stim_size.valueChanged.connect(self._on_change)
+        size_row.addWidget(self.spin_stim_size); size_row.addStretch()
+        sc.addLayout(size_row)
+
+        life_row = QHBoxLayout(); life_row.setSpacing(12)
+        life_row.addWidget(self._label("Tempo máximo para reagir:"))
+        self.spin_lifespan = QSpinBox()
+        self.spin_lifespan.setRange(200, 3000); self.spin_lifespan.setFixedWidth(90)
+        self.spin_lifespan.setValue(self._cfg_c.get("stimulus_lifespan_ms", 800))
+        self.spin_lifespan.setSuffix(" ms")
+        self.spin_lifespan.valueChanged.connect(self._on_change)
+        life_row.addWidget(self.spin_lifespan); life_row.addStretch()
+        sc.addLayout(life_row)
+
+        lay.addWidget(sec_c)
+
         # ── Seções placeholder para modos futuros ─────────────────────────────
-        for letra, nome in [("C","Periférico Espacial"),
-                             ("D","Carga Cognitiva"), ("E","Oclusão Estroboscópica"),
+        for letra, nome in [("D","Carga Cognitiva"), ("E","Oclusão Estroboscópica"),
                              ("F","Ghost Mode"), ("G","Resiliência Pós-Erro"),
                              ("H","Bio-Feedback de Fadiga")]:
             lay.addWidget(self._section_label(f"MODO {letra} — {nome}"))
@@ -757,7 +823,18 @@ class ConfigWidget(QWidget):
         }
 
         if callable(self.config_changed):
-            self.config_changed({"modo_a": cfg_a, "modo_b": cfg_b})
+            self.config_changed({"modo_a": cfg_a, "modo_b": cfg_b, "modo_c": self._build_cfg_c()})
+
+    def _build_cfg_c(self) -> dict:
+        return {
+            "teclas":               [t.strip().upper() for t in self.inp_teclas_c.text().split(",") if t.strip()],
+            "mouse_botoes":         [b for b, chk in self.chk_mouse_c.items() if chk.isChecked()],
+            "grid_size":            int(self.cmb_grid.currentText().replace("%", "")) / 100,
+            "peripheral_only":      self.chk_periph.isChecked(),
+            "fixation_cross":       self.chk_fixation.isChecked(),
+            "stimulus_size":        self.spin_stim_size.value(),
+            "stimulus_lifespan_ms": self.spin_lifespan.value(),
+        }
 
     def get_config(self) -> dict:
         return self._cfg
@@ -870,8 +947,9 @@ class TRACApp(QMainWindow):
 
         init_db()
         cfg_saved = load_config()
-        self._cfg_modo_a = {**DEFAULT_CONFIG, **cfg_saved.get("modo_a", {})}
+        self._cfg_modo_a = {**DEFAULT_CONFIG,   **cfg_saved.get("modo_a", {})}
         self._cfg_modo_b = {**DEFAULT_CONFIG_B, **cfg_saved.get("modo_b", {})}
+        self._cfg_modo_c = {**DEFAULT_CONFIG_C, **cfg_saved.get("modo_c", {})}
 
         root = QWidget()
         self.setCentralWidget(root)
@@ -894,7 +972,11 @@ class TRACApp(QMainWindow):
         # Abas
         self.home      = HomeWidget(on_modo=self._ir_para_modo)
         self.historico = HistoricoWidget()
-        self.config_w  = ConfigWidget({"modo_a": self._cfg_modo_a, "modo_b": self._cfg_modo_b})
+        self.config_w  = ConfigWidget({
+            "modo_a": self._cfg_modo_a,
+            "modo_b": self._cfg_modo_b,
+            "modo_c": self._cfg_modo_c,
+        })
         self.config_w.config_changed = self._on_config_changed
 
         self.area.addWidget(self.home)
@@ -904,6 +986,7 @@ class TRACApp(QMainWindow):
         # Widgets dos modos (sem sidebar — tela cheia dentro do area)
         self._modo_a_widget = None
         self._modo_b_widget = None
+        self._modo_c_widget = None
         self.area.setCurrentWidget(self.home)
 
         # track CSPRNG process if started by the app
@@ -943,6 +1026,18 @@ class TRACApp(QMainWindow):
             self._modo_b_widget.setFocus()
             self.sidebar.set_ativo("")   # nenhuma aba ativa durante treino
 
+        elif letra == "C":
+            if self._modo_c_widget:
+                self.area.removeWidget(self._modo_c_widget)
+                self._modo_c_widget.deleteLater()
+
+            self._modo_c_widget = ModoCGUI(config=self._cfg_modo_c)
+            self._modo_c_widget.finished.connect(self._sessao_encerrada)
+            self.area.addWidget(self._modo_c_widget)
+            self.area.setCurrentWidget(self._modo_c_widget)
+            self._modo_c_widget.setFocus()
+            self.sidebar.set_ativo("")
+
     def _sessao_encerrada(self, resumo: dict):
         salvar_sessao(resumo)
         self.home.atualizar_metricas(resumo)
@@ -952,9 +1047,9 @@ class TRACApp(QMainWindow):
     def _on_config_changed(self, cfg: dict):
         # Suporta dois formatos: direto (para Modo A) ou nested (para ambos)
         if "modo_a" in cfg and "modo_b" in cfg:
-            # Novo formato com ambos os modos
             self._cfg_modo_a = cfg["modo_a"]
             self._cfg_modo_b = cfg["modo_b"]
+            self._cfg_modo_c = cfg.get("modo_c", self._cfg_modo_c)
             cfg_store = cfg
         else:
             # Apenas Modo A (compatibilidade)
