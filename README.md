@@ -12,10 +12,10 @@ Instalar dependências:
 python -m pip install -r requirements.txt
 ```
 
-Executar CSPRNG (recomendado em terminal separado):
+Executar TRNG (recomendado em terminal separado):
 
 ```bash
-python csprng_server_v2.py
+python trng_server_v2.py
 ```
 
 Executar interface:
@@ -24,7 +24,7 @@ Executar interface:
 python trac_shell_v3.py
 ```
 
-Testar protocolo CSPRNG:
+Testar protocolo TRNG:
 
 ```bash
 python validate_v2.py
@@ -33,7 +33,7 @@ python validate_v2.py
 Arquivos principais:
 - `trac_shell_v3.py` — interface principal (Home / Histórico / Config)
 - `trac_modo_a_gui.py` — implementação do Modo A
-- `csprng_server_v2.py` — servidor CSPRNG (porta 9999)
+- `trng_server_v2.py` — servidor TRNG (porta 9999)
 - `trac_db.py` — banco SQLite local
 
 Notas:

@@ -84,8 +84,6 @@ class ModoAGUI(QWidget):
         self.timer_stimulus.timeout.connect(self._show_stimulus)
         self.timer_next     = QTimer(self); self.timer_next.setSingleShot(True)
         self.timer_next.timeout.connect(self._next_trial)
-        self.timer_start_reaction = QTimer(self); self.timer_start_reaction.setSingleShot(True)
-        self.timer_start_reaction.timeout.connect(self._start_reaction_timer)
 
         # ── Layout ────────────────────────────────────────────────────────────
         root = QVBoxLayout(self)
@@ -342,12 +340,9 @@ class ModoAGUI(QWidget):
         )
         self.lbl_stimulus.setText("  ".join(self.alvos_ativos))
         self._highlight_indicators(self.alvos_ativos)
-        # Agenda o registro de start_time para DEPOIS da renderização
-        # delay=0 significa "próximo evento do loop", garantindo que a tela foi atualizada
-        self.timer_start_reaction.start(0)
-
-    def _start_reaction_timer(self):
-        """Registra o tempo de reação APÓS a renderização estar completa."""
+        # repaint() é síncrono — só retorna após o paintEvent completar.
+        # Registrar start_time APÓS garante que o visual já está na tela.
+        self.lbl_stimulus.repaint()
         self.start_time        = time.perf_counter()
         self.waiting_for_input = True
 
