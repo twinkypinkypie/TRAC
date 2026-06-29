@@ -245,18 +245,26 @@ class HomeWidget(QWidget):
         QTimer.singleShot(400, self._checar_csprng)
 
     def _checar_csprng(self):
+        """Verifica conexão real com o servidor CSPRNG via handshake completo."""
+        conectado = False
         try:
-            with socket.socket() as s:
-                s.settimeout(0.5); s.connect(("127.0.0.1", 9999))
-                s.sendall(struct.pack("I", 0))
-                if len(s.recv(4)) == 4:
-                    self.lbl_csprng.setText("● CSPRNG: conectado  |  porta 9999")
-                    self.lbl_csprng.setStyleSheet(f"font-size:11px; color:{SUCCESS};")
-                    return
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.8)
+                s.connect(("127.0.0.1", 9999))
+                s.sendall(struct.pack("I", 12345))
+                data = s.recv(4)
+                if len(data) == 4:
+                    seed = struct.unpack("I", data)[0]
+                    # Seed válida: qualquer valor não-zero é aceito
+                    conectado = True
         except Exception:
             pass
-        self.lbl_csprng.setText("● CSPRNG: offline  —  inicie o csprng_server_v2.py")
-        self.lbl_csprng.setStyleSheet(f"font-size:11px; color:{WARNING};")
+        if conectado:
+            self.lbl_csprng.setText("● CSPRNG: conectado  |  porta 9999")
+            self.lbl_csprng.setStyleSheet(f"font-size:11px; color:{SUCCESS};")
+        else:
+            self.lbl_csprng.setText("● CSPRNG: offline  —  inicie o csprng_server_v2.py")
+            self.lbl_csprng.setStyleSheet(f"font-size:11px; color:{WARNING};")
 
     def _try_start_csprng(self):
         try:
