@@ -295,12 +295,11 @@ class ModoAGUI(ModoBase):
 
     # ── Eventos ───────────────────────────────────────────────────────────────
     def keyPressEvent(self, event: QKeyEvent):
-        super().keyPressEvent(event)
-        if event.isAccepted():
-            return
+        if event.key() == Qt.Key.Key_Escape:
+            self._encerrar_base(); return
         inp_id = self._kb_to_id.get(event.text().upper())
         if not inp_id:
-            return
+            event.ignore(); return
         if not self._is_running:
             self._start_session(); return
         if self._waiting:
