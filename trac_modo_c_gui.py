@@ -25,17 +25,18 @@ WARNING  = "#F5A623"
 DANGER   = "#E05252"
 
 DEFAULT_CONFIG_C = {
-    "teclas":           ["SPACE"],
-    "mouse_botoes":     ["LEFT"],
-    "grid_size":        1.0,        # fração da área da tela usada (0.5, 0.8, 1.0)
-    "peripheral_only":  True,       # exclui zona foveal central (15% da área)
-    "stimulus_size":    32,         # diâmetro do estímulo em px
-    "stimulus_lifespan_ms": 800,    # tempo máximo antes de sumir
-    "fixation_cross":   True,       # exibe cruz de fixação central
-    "wait_min_s":       0.5,
-    "wait_max_s":       2.0,
-    "limite_trc_ms":    350,
-    "penalidade_ms":    800,
+    "teclas":               ["SPACE"],
+    "mouse_botoes":         ["LEFT"],
+    "grid_size":            1.0,
+    "peripheral_only":      True,
+    "stimulus_size":        32,         # diâmetro do estímulo em px
+    "hit_radius":           48,         # raio de acerto do clique em px (deve ser >= stimulus_size/2)
+    "stimulus_lifespan_ms": 800,
+    "fixation_cross":       True,
+    "wait_min_s":           0.5,
+    "wait_max_s":           2.0,
+    "limite_trc_ms":        350,
+    "penalidade_ms":        800,
 }
 
 
@@ -150,10 +151,13 @@ class ModoCGUI(QWidget):
     def keyPressEvent(self, e: QKeyEvent):
         if e.key() == Qt.Key.Key_Escape:
             self._encerrar(); return
-        if self.estado == Estado.IDLE:
+        key = e.text().upper()
+        if not key:
+            return
+        if self.estado == Estado.IDLE and key in self.cfg["teclas"]:
             self._start_session(); return
-        if e.text().upper() in self.cfg["teclas"] and self.estado == Estado.STIMULUS:
-            self._process_hit()
+        if key in self.cfg["teclas"] and self.estado == Estado.STIMULUS:
+            self._process_hit(mouse_pos=None)
 
     def mousePressEvent(self, e: QMouseEvent):
         btn_map = {
@@ -166,7 +170,9 @@ class ModoCGUI(QWidget):
         if self.estado == Estado.IDLE:
             self._start_session(); return
         if self.estado == Estado.STIMULUS:
-            self._process_hit()
+            # Converte posição do clique para coordenadas do canvas
+            click_pos = self.canvas.mapFromParent(e.pos())
+            self._process_hit(mouse_pos=click_pos)
 
     # ── Fluxo ─────────────────────────────────────────────────────────────────
     def _start_session(self):
@@ -219,7 +225,9 @@ class ModoCGUI(QWidget):
         self._stim_pos     = self._pick_position()
         self._stim_visible = True
         self.canvas.update_state(
-            self._stim_pos, True, None, self.cfg["stimulus_size"]
+            self._stim_pos, True, None,
+            self.cfg["stimulus_size"],
+            hit_radius=self.cfg["hit_radius"] if self.cfg["mouse_botoes"] else 0,
         )
         # repaint() síncrono — garante que o paintEvent do canvas completou
         # antes de registrar start_time. Mais preciso que QTimer(0) para
@@ -228,8 +236,32 @@ class ModoCGUI(QWidget):
         self.start_time = time.perf_counter()
         self._t_lifespan.start(self.cfg["stimulus_lifespan_ms"])
 
-    def _process_hit(self):
+    def _process_hit(self, mouse_pos: QPoint | None = None):
         trc = (time.perf_counter() - self.start_time) * 1000
+
+        # Validação espacial — apenas para cliques de mouse
+        if mouse_pos is not None and self._stim_pos is not None:
+            dist = math.sqrt(
+                (mouse_pos.x() - self._stim_pos.x()) ** 2 +
+                (mouse_pos.y() - self._stim_pos.y()) ** 2
+            )
+            if dist > self.cfg["hit_radius"]:
+                # Clique fora da área — registra como erro sem encerrar a tentativa
+                self.canvas.set_status(
+                    f"✗  Fora da área ({dist:.0f}px)", DANGER
+                )
+                self._registrar(trc, acerto=False, miss=False, fora=True,
+                                click_pos=mouse_pos)
+                self._t_lifespan.stop()
+                self.estado = Estado.FEEDBACK
+                self._stim_visible = False
+                self.canvas.update_state(
+                    self._stim_pos, False, QColor(DANGER), self.cfg["stimulus_size"]
+                )
+                self._t_feedback.start(500)
+                self._t_next.start(self.cfg["penalidade_ms"])
+                return
+
         self._t_lifespan.stop()
         self.estado        = Estado.FEEDBACK
         self._stim_visible = False
@@ -240,7 +272,7 @@ class ModoCGUI(QWidget):
         self.canvas.update_state(
             self._stim_pos, False, cor, self.cfg["stimulus_size"]
         )
-        self._registrar(trc, acerto=True)
+        self._registrar(trc, acerto=True, click_pos=mouse_pos)
 
         status = f"✓  {trc:.0f}ms" if acerto else f"LENTO  {trc:.0f}ms"
         self.canvas.set_status(status, cor.name())
@@ -263,15 +295,18 @@ class ModoCGUI(QWidget):
     def _clear_feedback(self):
         self.canvas.update_state(None, False, None, None)
 
-    def _registrar(self, trc, acerto, miss=False):
+    def _registrar(self, trc, acerto, miss=False, fora=False, click_pos=None):
         self.resultados.append({
             "tecla_alvo":        "PERIPH",
-            "tecla_pressionada": "HIT" if acerto else ("MISS" if miss else "EARLY"),
+            "tecla_pressionada": "HIT" if acerto else ("MISS" if miss else ("FORA" if fora else "EARLY")),
             "trc_ms":            round(trc, 2) if trc is not None else None,
             "acerto":            acerto,
             "miss":              miss,
-            "pos_x":             self._stim_pos.x() if self._stim_pos else None,
-            "pos_y":             self._stim_pos.y() if self._stim_pos else None,
+            "fora_da_area":      fora,
+            "stim_x":            self._stim_pos.x() if self._stim_pos else None,
+            "stim_y":            self._stim_pos.y() if self._stim_pos else None,
+            "click_x":           click_pos.x() if click_pos else None,
+            "click_y":           click_pos.y() if click_pos else None,
             "modo_resposta":     "periférico",
         })
         self._atualizar_barra()
@@ -336,16 +371,19 @@ class _CanvasC(QWidget):
         self._stim_visible = False
         self._feedback_color: QColor | None = None
         self._stim_size    = 32
+        self._hit_radius   = 48
         self._status_text  = "Pressione qualquer tecla para começar"
         self._status_color = TEXT_SEC
         self._show_fixation = True
 
-    def update_state(self, pos, visible, feedback_color, size):
-        self._stim_pos      = pos
-        self._stim_visible  = visible
+    def update_state(self, pos, visible, feedback_color, size, hit_radius=None):
+        self._stim_pos       = pos
+        self._stim_visible   = visible
         self._feedback_color = feedback_color
         if size is not None:
             self._stim_size = size
+        if hit_radius is not None:
+            self._hit_radius = hit_radius
         self.update()
 
     def set_status(self, text, color=TEXT_SEC):
@@ -387,6 +425,14 @@ class _CanvasC(QWidget):
         r = self._stim_size // 2
 
         if self._stim_visible and self._stim_pos:
+            # Anel de área de acerto (apenas quando mouse_botoes está ativo)
+            if self._hit_radius > self._stim_size // 2:
+                ring_pen = QPen(QColor(ACCENT), 1, Qt.PenStyle.DashLine)
+                ring_pen.setDashPattern([4, 6])
+                p.setPen(ring_pen)
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.drawEllipse(self._stim_pos, self._hit_radius, self._hit_radius)
+
             # Gradiente radial para o estímulo — parece uma "luz"
             grad = QRadialGradient(
                 float(self._stim_pos.x()), float(self._stim_pos.y()), float(r),
