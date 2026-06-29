@@ -327,6 +327,7 @@ class ModoBGUI(QWidget):
 
     def _next_trial(self):
         """Inicia um novo trial, aguardando intervalo aleatório antes do alerta."""
+        self.estado = Estado.WAITING   # fix: garante estado correto desde o início
         self._set_sinal("idle")
         self.lbl_status.setText("Aguarde...")
         self.lbl_status.setStyleSheet(
@@ -409,24 +410,30 @@ class ModoBGUI(QWidget):
         self._registrar("NOGO" if fase == "NOGO" else "GO", inp, None,
                         acerto=False, false_start=True, fase=fase)
 
+        # Para todos os timers de ciclo antes de decidir a penalidade
+        self._t_alert.stop(); self._t_nogo.stop(); self._t_miss.stop()
+
         if penalidade == "RESET":
-            self._t_alert.stop(); self._t_nogo.stop(); self._t_miss.stop()
+            # Reinicia o trial normalmente após a penalidade
             self.lbl_result.setText(f"✗  False start [{inp}]  —  reiniciando")
             self.lbl_result.setStyleSheet(
                 f"font-size:16px; font-weight:700; color:{DANGER};"
             )
+            self.estado = Estado.WAITING
             self._t_next.start(self.cfg["penalidade_ms"])
 
         elif penalidade == "MISS":
-            self._t_alert.stop(); self._t_nogo.stop(); self._t_miss.stop()
+            # Conta o erro e avança para o próximo trial
             self.lbl_result.setText(f"✗  False start [{inp}]  —  erro contado")
             self.lbl_result.setStyleSheet(
                 f"font-size:16px; font-weight:700; color:{DANGER};"
             )
+            self.estado = Estado.WAITING
             self._t_next.start(self.cfg["penalidade_ms"])
 
         elif penalidade == "BLOCK":
-            self._t_alert.stop(); self._t_nogo.stop(); self._t_miss.stop()
+            # Bloqueia inputs por block_duration_ms antes de retomar
+            self._t_next.stop()   # garante que não haja avanço durante o bloqueio
             self.estado = Estado.BLOCKED
             self._set_sinal("blocked")
             self.lbl_status.setText("Bloqueado...")
