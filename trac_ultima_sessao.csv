@@ -1,2 +1,0 @@
-id,timestamp,modo,config_json,duracao_ms,tentativas,acertos,precisao,trc_medio,trc_minimo
-1,1782084970,A,"{""teclas"": [""W"", ""A"", ""S"", ""D""], ""mouse_botoes"": [], ""estimulos_simultaneos"": 1, ""modo_resposta"": ""simples"", ""limite_trc_ms"": 299, ""wait_min_s"": 0.5, ""wait_max_s"": 2.0, ""penalidade_ms"": 1000}",23430,9,7,77.8,472.2,306.1
