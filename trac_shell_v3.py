@@ -1,12 +1,14 @@
 """
 TRAC — Shell principal v3
-Home + Histórico + Configurações + Modo A integrado
+Home + Histórico + Configurações + Modos A, B, C integrados
 """
 
 import sys
 import json
 import socket
 import struct
+import subprocess
+import csv
 from datetime import datetime
 from pathlib import Path
 
@@ -14,7 +16,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QFrame, QGridLayout, QSizePolicy,
     QStackedWidget, QScrollArea, QFileDialog, QCheckBox,
-    QSpinBox, QComboBox, QLineEdit, QMessageBox, QSplitter,
+    QSpinBox, QComboBox, QLineEdit, QMessageBox,
     QTableWidget, QTableWidgetItem, QHeaderView,
 )
 from PyQt6.QtCore import Qt, QTimer
@@ -24,12 +26,8 @@ from trac_modo_a_gui import ModoAGUI, DEFAULT_CONFIG
 from trac_modo_b_gui import ModoBGUI, DEFAULT_CONFIG_B
 from trac_modo_c_gui import ModoCGUI, DEFAULT_CONFIG_C
 from trac_db import init_db, salvar_sessao, listar_sessoes, exportar_csv
-import json
-import subprocess
-import sys
 
 CONFIG_PATH = Path(__file__).parent / "trac_config.json"
-
 
 def load_config() -> dict:
     try:
@@ -38,16 +36,14 @@ def load_config() -> dict:
     except Exception:
         return {}
 
-
 def save_config(cfg: dict) -> bool:
     try:
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, indent=2)
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
         return True
     except Exception:
         return False
 
-# ── Paleta ────────────────────────────────────────────────────────────────────
 BG_DEEP    = "#09090F"
 BG_SURFACE = "#111118"
 BG_CARD    = "#16161F"
@@ -76,81 +72,33 @@ STYLESHEET = f"""
 QMainWindow, QWidget {{ background-color:{BG_DEEP}; color:{TEXT_PRI}; }}
 QLabel {{ background:transparent; color:{TEXT_PRI}; }}
 QFrame#divider {{ background-color:{BORDER}; max-height:1px; min-height:1px; }}
-
-QFrame#modeCard {{
-    background-color:{BG_CARD}; border:1px solid {BORDER}; border-radius:10px;
-}}
-QFrame#modeCard:hover {{
-    border:1px solid {ACCENT}; background-color:{ACCENT_DIM};
-}}
-QFrame#modeCardDisabled {{
-    background-color:{BG_SURFACE}; border:1px solid {TEXT_DIM}; border-radius:10px;
-}}
-QPushButton#btnPrimary {{
-    background-color:{ACCENT}; color:#fff; border:none; border-radius:8px;
-    padding:10px 24px; font-size:13px; font-weight:600;
-}}
-QPushButton#btnPrimary:hover   {{ background-color:#6BA3FF; }}
+QFrame#modeCard {{ background-color:{BG_CARD}; border:1px solid {BORDER}; border-radius:10px; }}
+QFrame#modeCard:hover {{ border:1px solid {ACCENT}; background-color:{ACCENT_DIM}; }}
+QFrame#modeCardDisabled {{ background-color:{BG_SURFACE}; border:1px solid {TEXT_DIM}; border-radius:10px; }}
+QPushButton#btnPrimary {{ background-color:{ACCENT}; color:#fff; border:none; border-radius:8px; padding:10px 24px; font-size:13px; font-weight:600; }}
+QPushButton#btnPrimary:hover {{ background-color:#6BA3FF; }}
 QPushButton#btnPrimary:pressed {{ background-color:#3A7AE8; }}
 QPushButton#btnPrimary:disabled {{ background-color:{TEXT_DIM}; color:{TEXT_SEC}; }}
-
-QPushButton#btnGhost {{
-    background-color:transparent; color:{TEXT_SEC};
-    border:1px solid {BORDER}; border-radius:8px;
-    padding:10px 20px; font-size:13px;
-}}
-QPushButton#btnGhost:hover {{
-    background-color:{BG_CARD}; color:{TEXT_PRI}; border:1px solid {ACCENT};
-}}
-QPushButton#btnDanger {{
-    background-color:transparent; color:{DANGER};
-    border:1px solid {DANGER}; border-radius:8px;
-    padding:10px 20px; font-size:13px;
-}}
+QPushButton#btnGhost {{ background-color:transparent; color:{TEXT_SEC}; border:1px solid {BORDER}; border-radius:8px; padding:10px 20px; font-size:13px; }}
+QPushButton#btnGhost:hover {{ background-color:{BG_CARD}; color:{TEXT_PRI}; border:1px solid {ACCENT}; }}
+QPushButton#btnDanger {{ background-color:transparent; color:{DANGER}; border:1px solid {DANGER}; border-radius:8px; padding:10px 20px; font-size:13px; }}
 QPushButton#btnDanger:hover {{ background-color:#2E0F0F; }}
-
-QLabel#badgeAtivo   {{ color:{SUCCESS}; background-color:#0D2E1C; border-radius:4px; padding:2px 8px; font-size:11px; font-weight:600; }}
+QLabel#badgeAtivo {{ color:{SUCCESS}; background-color:#0D2E1C; border-radius:4px; padding:2px 8px; font-size:11px; font-weight:600; }}
 QLabel#badgeEmBreve {{ color:{WARNING}; background-color:#2E200A; border-radius:4px; padding:2px 8px; font-size:11px; font-weight:600; }}
-QFrame#metricBox    {{ background-color:{BG_SURFACE}; border:1px solid {BORDER}; border-radius:8px; }}
+QFrame#metricBox {{ background-color:{BG_SURFACE}; border:1px solid {BORDER}; border-radius:8px; }}
 QFrame#configSection {{ background-color:{BG_SURFACE}; border:1px solid {BORDER}; border-radius:10px; }}
 QFrame#configSectionDisabled {{ background-color:{BG_DEEP}; border:1px solid {TEXT_DIM}; border-radius:10px; }}
-
-QSpinBox, QComboBox, QLineEdit {{
-    background-color:{BG_CARD}; color:{TEXT_PRI};
-    border:1px solid {BORDER}; border-radius:6px;
-    padding:4px 8px; font-size:13px;
-}}
-QSpinBox:focus, QComboBox:focus, QLineEdit:focus {{
-    border:1px solid {ACCENT};
-}}
+QSpinBox, QComboBox, QLineEdit {{ background-color:{BG_CARD}; color:{TEXT_PRI}; border:1px solid {BORDER}; border-radius:6px; padding:4px 8px; font-size:13px; }}
+QSpinBox:focus, QComboBox:focus, QLineEdit:focus {{ border:1px solid {ACCENT}; }}
 QComboBox::drop-down {{ border:none; }}
-QComboBox QAbstractItemView {{
-    background-color:{BG_CARD}; color:{TEXT_PRI};
-    border:1px solid {BORDER}; selection-background-color:{ACCENT_DIM};
-}}
+QComboBox QAbstractItemView {{ background-color:{BG_CARD}; color:{TEXT_PRI}; border:1px solid {BORDER}; selection-background-color:{ACCENT_DIM}; }}
 QCheckBox {{ color:{TEXT_PRI}; spacing:8px; font-size:13px; }}
-QCheckBox::indicator {{
-    width:18px; height:18px;
-    border:1px solid {BORDER}; border-radius:4px;
-    background-color:{BG_CARD};
-}}
-QCheckBox::indicator:checked {{
-    background-color:{ACCENT}; border:1px solid {ACCENT};
-}}
-
-QTableWidget {{
-    background-color:{BG_SURFACE}; color:{TEXT_PRI};
-    border:1px solid {BORDER}; border-radius:8px;
-    gridline-color:{BORDER}; font-size:12px;
-}}
+QCheckBox::indicator {{ width:18px; height:18px; border:1px solid {BORDER}; border-radius:4px; background-color:{BG_CARD}; }}
+QCheckBox::indicator:checked {{ background-color:{ACCENT}; border:1px solid {ACCENT}; }}
+QTableWidget {{ background-color:{BG_SURFACE}; color:{TEXT_PRI}; border:1px solid {BORDER}; border-radius:8px; gridline-color:{BORDER}; font-size:12px; }}
 QTableWidget::item {{ padding:6px 10px; }}
 QTableWidget::item:selected {{ background-color:{ACCENT_DIM}; color:{TEXT_PRI}; }}
-QHeaderView::section {{
-    background-color:{BG_CARD}; color:{TEXT_SEC};
-    border:none; border-bottom:1px solid {BORDER};
-    padding:6px 10px; font-size:11px; font-weight:600;
-}}
-
+QHeaderView::section {{ background-color:{BG_CARD}; color:{TEXT_SEC}; border:none; border-bottom:1px solid {BORDER}; padding:6px 10px; font-size:11px; font-weight:600; }}
 QScrollBar:vertical {{ width:4px; background:transparent; }}
 QScrollBar::handle:vertical {{ background:{BORDER}; border-radius:2px; min-height:40px; }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height:0; }}
@@ -159,7 +107,7 @@ QScrollBar::handle:horizontal {{ background:{BORDER}; border-radius:2px; min-wid
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width:0; }}
 """
 
-# ── Widgets auxiliares ────────────────────────────────────────────────────────
+
 class LetraWidget(QLabel):
     def __init__(self, letra, ativo=True, parent=None):
         super().__init__(letra, parent)
@@ -172,6 +120,7 @@ class LetraWidget(QLabel):
             f"background-color:{bg}; color:{fg}; border:1px solid {bd};"
             f"border-radius:10px; font-size:20px; font-weight:700;"
         )
+
 
 class MetricBox(QFrame):
     def __init__(self, label, valor, cor=ACCENT, parent=None):
@@ -192,6 +141,7 @@ class MetricBox(QFrame):
         if cor:
             self._val.setStyleSheet(f"font-size:20px; font-weight:700; color:{cor};")
 
+
 class ModeCard(QFrame):
     def __init__(self, modo, on_click=None, parent=None):
         super().__init__(parent)
@@ -199,25 +149,21 @@ class ModeCard(QFrame):
         self.setObjectName("modeCard" if ativo else "modeCardDisabled")
         self.setFixedHeight(90)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        cursor = Qt.CursorShape.PointingHandCursor if ativo else Qt.CursorShape.ForbiddenCursor
-        self.setCursor(QCursor(cursor))
-        self._cb = on_click if ativo else None
-
+        self.setCursor(QCursor(
+            Qt.CursorShape.PointingHandCursor if ativo else Qt.CursorShape.ForbiddenCursor
+        ))
+        self._cb = on_click
         lay = QHBoxLayout(self)
         lay.setContentsMargins(16, 12, 16, 12); lay.setSpacing(14)
         lay.addWidget(LetraWidget(modo["letra"], ativo))
-
         txt = QVBoxLayout(); txt.setSpacing(3)
         nome = QLabel(modo["nome"])
-        nome.setStyleSheet(
-            f"font-size:14px; font-weight:600; color:{ TEXT_PRI if ativo else TEXT_SEC };"
-        )
+        nome.setStyleSheet(f"font-size:14px; font-weight:600; color:{TEXT_PRI if ativo else TEXT_SEC};")
         txt.addWidget(nome)
         desc = QLabel(modo["desc"])
         desc.setStyleSheet(f"font-size:12px; color:{TEXT_SEC};")
         txt.addWidget(desc)
         lay.addLayout(txt); lay.addStretch()
-
         badge = QLabel("ativo" if ativo else "em breve")
         badge.setObjectName("badgeAtivo" if ativo else "badgeEmBreve")
         badge.setFixedHeight(20)
@@ -227,26 +173,24 @@ class ModeCard(QFrame):
         if self._cb: self._cb()
         super().mousePressEvent(e)
 
+
 def divider():
     d = QFrame(); d.setObjectName("divider"); return d
 
 def section_label(texto):
     l = QLabel(texto)
-    l.setStyleSheet(
-        f"font-size:11px; font-weight:600; color:{TEXT_SEC}; letter-spacing:1px;"
-    )
+    l.setStyleSheet(f"font-size:11px; font-weight:600; color:{TEXT_SEC}; letter-spacing:1px;")
     return l
 
-# ── ABA: HOME ─────────────────────────────────────────────────────────────────
+
 class HomeWidget(QWidget):
     def __init__(self, on_modo, parent=None):
         super().__init__(parent)
-        self._n_sessoes = 0
+        self._n_sessoes   = 0
         self._csprng_proc = None
         main = QVBoxLayout(self)
         main.setContentsMargins(32, 28, 32, 24); main.setSpacing(0)
 
-        # Header
         header = QHBoxLayout()
         col = QVBoxLayout(); col.setSpacing(2)
         titulo = QLabel("Selecionar Modo")
@@ -258,12 +202,11 @@ class HomeWidget(QWidget):
         header.addLayout(col); header.addStretch()
 
         mr = QHBoxLayout(); mr.setSpacing(8)
-        self.m_trc      = MetricBox("Melhor TRC",  "—",  ACCENT)
-        self.m_precisao = MetricBox("Precisão",    "—",  SUCCESS)
-        self.m_sessoes  = MetricBox("Sessões",     "0",  TEXT_PRI)
-        mr.addWidget(self.m_trc)
-        mr.addWidget(self.m_precisao)
-        mr.addWidget(self.m_sessoes)
+        self.m_trc      = MetricBox("Melhor TRC", "—",  ACCENT)
+        self.m_precisao = MetricBox("Precisão",   "—",  SUCCESS)
+        self.m_sessoes  = MetricBox("Sessões",    "0",  TEXT_PRI)
+        for m in (self.m_trc, self.m_precisao, self.m_sessoes):
+            mr.addWidget(m)
         header.addLayout(mr)
         main.addLayout(header); main.addSpacing(24)
         main.addWidget(divider()); main.addSpacing(16)
@@ -275,8 +218,7 @@ class HomeWidget(QWidget):
                 cb = (lambda m: lambda: on_modo(m["letra"]))(modo)
             else:
                 cb = (lambda m: lambda: self._show_placeholder(m))(modo)
-            card = ModeCard(modo, on_click=cb)
-            grid.addWidget(card, i // 2, i % 2)
+            grid.addWidget(ModeCard(modo, on_click=cb), i // 2, i % 2)
         main.addLayout(grid); main.addStretch(); main.addSpacing(16)
         main.addWidget(divider()); main.addSpacing(14)
 
@@ -284,29 +226,22 @@ class HomeWidget(QWidget):
         self.lbl_csprng = QLabel("● CSPRNG: verificando...")
         self.lbl_csprng.setStyleSheet(f"font-size:11px; color:{TEXT_SEC};")
         footer.addWidget(self.lbl_csprng)
-
-        self.btn_csprng = QPushButton("Iniciar CSPRNG")
-        self.btn_csprng.setObjectName("btnGhost")
-        self.btn_csprng.setFixedHeight(32)
-        self.btn_csprng.clicked.connect(self._try_start_csprng)
-        footer.addWidget(self.btn_csprng)
-
+        btn_csprng = QPushButton("Iniciar CSPRNG")
+        btn_csprng.setObjectName("btnGhost"); btn_csprng.setFixedHeight(32)
+        btn_csprng.clicked.connect(self._try_start_csprng)
+        footer.addWidget(btn_csprng)
         footer.addStretch()
+        btn_export = QPushButton("Exportar Última")
+        btn_export.setObjectName("btnGhost"); btn_export.setFixedHeight(32)
+        btn_export.clicked.connect(self._export_last_session)
+        footer.addWidget(btn_export)
         self.btn_iniciar = QPushButton("Iniciar Modo A  →")
-        self.btn_iniciar.setObjectName("btnPrimary")
-        self.btn_iniciar.setFixedHeight(38)
+        self.btn_iniciar.setObjectName("btnPrimary"); self.btn_iniciar.setFixedHeight(38)
         self.btn_iniciar.clicked.connect(lambda: on_modo("A"))
         footer.addWidget(self.btn_iniciar)
-
-        self.btn_export_last = QPushButton("Exportar Última")
-        self.btn_export_last.setObjectName("btnGhost")
-        self.btn_export_last.setFixedHeight(32)
-        self.btn_export_last.clicked.connect(self._export_last_session)
-        footer.addWidget(self.btn_export_last)
-
         main.addLayout(footer)
-        self._load_initial_stats()
 
+        self._load_initial_stats()
         QTimer.singleShot(400, self._checar_csprng)
 
     def _checar_csprng(self):
@@ -323,57 +258,46 @@ class HomeWidget(QWidget):
         self.lbl_csprng.setText("● CSPRNG: offline  —  inicie o csprng_server_v2.py")
         self.lbl_csprng.setStyleSheet(f"font-size:11px; color:{WARNING};")
 
-    def _show_placeholder(self, modo: dict):
-        from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(
-            self, f"Modo {modo['letra']}",
-            f"{modo['nome']}\n\n{modo['desc']}\n\nStatus: {modo['status']}. Implementação futura.")
-
     def _try_start_csprng(self):
-        # tenta se conectar primeiro
         try:
             with socket.socket() as s:
                 s.settimeout(0.5); s.connect(("127.0.0.1", 9999))
-                self.lbl_csprng.setText("● CSPRNG: conectado  |  porta 9999")
+                self.lbl_csprng.setText("● CSPRNG: já conectado  |  porta 9999")
                 self.lbl_csprng.setStyleSheet(f"font-size:11px; color:{SUCCESS};")
                 return
         except Exception:
             pass
-
-        # tenta iniciar o servidor CSPRNG via subprocess
         try:
-            script = Path(__file__).parent / 'csprng_server_v2.py'
-            proc = subprocess.Popen([sys.executable, str(script)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            # track process locally and on app
+            script = Path(__file__).parent / "csprng_server_v2.py"
+            proc = subprocess.Popen(
+                [sys.executable, str(script)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
             self._csprng_proc = proc
             try:
-                app_win = self.window()
-                if hasattr(app_win, '_csprng_proc'):
-                    app_win._csprng_proc = proc
+                self.window()._csprng_proc = proc
             except Exception:
                 pass
             QTimer.singleShot(800, self._checar_csprng)
         except Exception as e:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, 'CSPRNG', f'Falha ao iniciar CSPRNG: {e}')
+            QMessageBox.warning(self, "CSPRNG", f"Falha ao iniciar CSPRNG:\n{e}")
+
+    def _show_placeholder(self, modo):
+        QMessageBox.information(
+            self, f"Modo {modo['letra']}",
+            f"{modo['nome']}\n\n{modo['desc']}\n\nStatus: em breve.",
+        )
 
     def _export_last_session(self):
         sessoes = listar_sessoes(1)
         if not sessoes:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(self, 'Exportar', 'Nenhuma sessão registrada.')
+            QMessageBox.information(self, "Exportar", "Nenhuma sessão registrada.")
             return
-        s = sessoes[0]
-        # salva em CSV simples
-        import csv
-        path = Path.cwd() / 'trac_ultima_sessao.csv'
-        keys = list(s.keys())
-        with open(path, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=keys)
-            writer.writeheader()
-            writer.writerow(s)
-        from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(self, 'Exportar', f'Última sessão exportada para:\n{path}')
+        path = Path.cwd() / "trac_ultima_sessao.csv"
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=sessoes[0].keys())
+            writer.writeheader(); writer.writerows(sessoes)
+        QMessageBox.information(self, "Exportar", f"Exportado para:\n{path}")
 
     def atualizar_metricas(self, resumo: dict):
         self._n_sessoes += 1
@@ -394,43 +318,35 @@ class HomeWidget(QWidget):
         sessoes = listar_sessoes(1000)
         self._n_sessoes = len(sessoes)
         self.m_sessoes.set_valor(str(self._n_sessoes))
-
-        trc_minimos = [s["trc_minimo"] for s in sessoes if s["trc_minimo"] is not None]
-        if trc_minimos:
-            self.m_trc.set_valor(f"{min(trc_minimos):.0f}ms")
-
-        precisao_vals = [s["precisao"] for s in sessoes if s["precisao"] is not None]
-        if precisao_vals:
-            avg_pct = sum(precisao_vals) / len(precisao_vals)
-            cor = SUCCESS if avg_pct >= 90 else (WARNING if avg_pct >= 70 else DANGER)
-            self.m_precisao.set_valor(f"{avg_pct:.0f}%", cor)
-
+        trcs = [s["trc_minimo"] for s in sessoes if s.get("trc_minimo")]
+        if trcs:
+            self.m_trc.set_valor(f"{min(trcs):.0f}ms")
+        precs = [s["precisao"] for s in sessoes if s.get("precisao") is not None]
+        if precs:
+            avg = sum(precs) / len(precs)
+            cor = SUCCESS if avg >= 90 else (WARNING if avg >= 70 else DANGER)
+            self.m_precisao.set_valor(f"{avg:.0f}%", cor)
         if sessoes:
-            ultima = sessoes[0]
+            u = sessoes[0]
             self.lbl_ultima.setText(
-                f"Última sessão: Modo {ultima.get('modo','?')} — {ultima.get('tentativas',0)} tentativas"
+                f"Última sessão: Modo {u.get('modo','?')} — {u.get('tentativas',0)} tentativas"
             )
 
 
-# ── ABA: HISTÓRICO ────────────────────────────────────────────────────────────
 class HistoricoWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(32, 28, 32, 24); lay.setSpacing(0)
 
-        # Header
         h = QHBoxLayout()
         titulo = QLabel("Histórico de Sessões")
         titulo.setStyleSheet(f"font-size:22px; font-weight:700; color:{TEXT_PRI};")
         h.addWidget(titulo); h.addStretch()
-
-        btn_atualizar = QPushButton("Atualizar")
-        btn_atualizar.setObjectName("btnGhost"); btn_atualizar.setFixedHeight(36)
-        btn_atualizar.clicked.connect(self.carregar)
-        h.addWidget(btn_atualizar)
-        h.addSpacing(8)
-
+        btn_at = QPushButton("Atualizar")
+        btn_at.setObjectName("btnGhost"); btn_at.setFixedHeight(36)
+        btn_at.clicked.connect(self.carregar)
+        h.addWidget(btn_at); h.addSpacing(8)
         self.btn_exportar = QPushButton("Exportar CSV")
         self.btn_exportar.setObjectName("btnPrimary"); self.btn_exportar.setFixedHeight(36)
         self.btn_exportar.clicked.connect(self._exportar)
@@ -442,7 +358,6 @@ class HistoricoWidget(QWidget):
         lay.addWidget(self.lbl_resumo); lay.addSpacing(16)
         lay.addWidget(divider()); lay.addSpacing(16)
 
-        # Tabela
         self.tabela = QTableWidget()
         self.tabela.setColumnCount(7)
         self.tabela.setHorizontalHeaderLabels([
@@ -456,16 +371,14 @@ class HistoricoWidget(QWidget):
             0, QHeaderView.ResizeMode.ResizeToContents
         )
         lay.addWidget(self.tabela, stretch=1)
-
         self.carregar()
 
     def carregar(self):
         sessoes = listar_sessoes()
         self.tabela.setRowCount(len(sessoes))
-
         for i, s in enumerate(sessoes):
             dt = datetime.fromtimestamp(s["timestamp"]).strftime("%d/%m/%Y  %H:%M")
-            valores = [
+            for j, v in enumerate([
                 dt,
                 f"Modo {s['modo']}",
                 str(s["tentativas"] or 0),
@@ -473,12 +386,10 @@ class HistoricoWidget(QWidget):
                 f"{s['precisao']:.0f}%" if s["precisao"] is not None else "—",
                 f"{s['trc_medio']:.0f}ms" if s["trc_medio"] is not None else "—",
                 f"{s['trc_minimo']:.0f}ms" if s["trc_minimo"] is not None else "—",
-            ]
-            for j, v in enumerate(valores):
+            ]):
                 item = QTableWidgetItem(v)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.tabela.setItem(i, j, item)
-
         n = len(sessoes)
         self.lbl_resumo.setText(
             f"{n} sessão{'ões' if n != 1 else ''} registrada{'s' if n != 1 else ''}"
@@ -487,31 +398,35 @@ class HistoricoWidget(QWidget):
 
     def _exportar(self):
         path, _ = QFileDialog.getSaveFileName(
-            self, "Exportar histórico", "trac_historico.csv",
-            "CSV (*.csv)"
+            self, "Exportar histórico", "trac_historico.csv", "CSV (*.csv)"
         )
-        if not path:
-            return
-        n = exportar_csv(path)
-        QMessageBox.information(
-            self, "Exportação concluída",
-            f"{n} sessões exportadas para:\n{path}"
-        )
+        if path:
+            n = exportar_csv(path)
+            QMessageBox.information(self, "Exportação concluída",
+                                    f"{n} sessões exportadas para:\n{path}")
 
 
-# ── ABA: CONFIGURAÇÕES ────────────────────────────────────────────────────────
 class ConfigWidget(QWidget):
-    config_changed = None   # definido em TRACApp
+    config_changed = None
 
     def __init__(self, config_inicial: dict, parent=None):
         super().__init__(parent)
-        self._cfg = {**DEFAULT_CONFIG, **config_inicial}
-        self._cfg_b = {**DEFAULT_CONFIG_B, **config_inicial.get("modo_b", {})}
+        saved_a      = config_inicial.get("modo_a", {})
+        self._cfg_b  = {**DEFAULT_CONFIG_B, **config_inicial.get("modo_b", {})}
+        self._cfg_c  = {**DEFAULT_CONFIG_C, **config_inicial.get("modo_c", {})}
+
+        def _a_inputs():
+            return saved_a.get("inputs", DEFAULT_CONFIG.get("inputs", []))
+        def _a_gp(key, default):
+            return saved_a.get("gameplay", {}).get(
+                key, DEFAULT_CONFIG.get("gameplay", {}).get(key, default))
+        def _a_tm(key, default):
+            return saved_a.get("timing", {}).get(
+                key, DEFAULT_CONFIG.get("timing", {}).get(key, default))
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-
         inner = QWidget()
         lay = QVBoxLayout(inner)
         lay.setContentsMargins(32, 28, 32, 32); lay.setSpacing(24)
@@ -519,186 +434,180 @@ class ConfigWidget(QWidget):
         titulo = QLabel("Configurações")
         titulo.setStyleSheet(f"font-size:22px; font-weight:700; color:{TEXT_PRI};")
         lay.addWidget(titulo)
-        lay.addWidget(divider())
-        lay.addSpacing(8)
+        lay.addWidget(divider()); lay.addSpacing(8)
 
-        # ── Seção: Modo A ─────────────────────────────────────────────────────
-        lay.addWidget(self._section_label("MODO A — Escolha Simbólica"))
-
+        # ── Modo A ────────────────────────────────────────────────────────────
+        lay.addWidget(section_label("MODO A — Escolha Simbólica"))
         sec_a = QFrame(); sec_a.setObjectName("configSection")
         sa = QVBoxLayout(sec_a); sa.setContentsMargins(20, 18, 20, 18); sa.setSpacing(14)
 
-        # Teclas
-        sa.addWidget(self._label("Teclas mapeadas (separadas por vírgula):"))
-        self.inp_teclas = QLineEdit(", ".join(self._cfg.get("teclas", [])))
+        teclas_atuais = [i["code"] for i in _a_inputs() if i.get("type") == "keyboard"]
+        sa.addWidget(self._lbl("Teclas mapeadas (separadas por vírgula):"))
+        self.inp_teclas = QLineEdit(", ".join(teclas_atuais))
         self.inp_teclas.setPlaceholderText("Ex: W, A, S, D")
         self.inp_teclas.textChanged.connect(self._on_change)
         sa.addWidget(self.inp_teclas)
 
-        # Mouse
-        sa.addWidget(self._label("Botões do mouse:"))
-        mouse_row = QHBoxLayout(); mouse_row.setSpacing(16)
+        mouse_atuais = [i["code"] for i in _a_inputs() if i.get("type") == "mouse"]
+        sa.addWidget(self._lbl("Botões do mouse:"))
+        mr = QHBoxLayout(); mr.setSpacing(16)
         self.chk_mouse = {}
         for btn in ["LEFT", "RIGHT", "MIDDLE"]:
             chk = QCheckBox(btn.capitalize())
-            chk.setChecked(btn in self._cfg.get("mouse_botoes", []))
+            chk.setChecked(btn in mouse_atuais)
             chk.stateChanged.connect(self._on_change)
-            self.chk_mouse[btn] = chk
-            mouse_row.addWidget(chk)
-        mouse_row.addStretch()
-        sa.addLayout(mouse_row)
+            self.chk_mouse[btn] = chk; mr.addWidget(chk)
+        mr.addStretch(); sa.addLayout(mr)
 
-        # Estímulos simultâneos
-        est_row = QHBoxLayout(); est_row.setSpacing(12)
-        est_row.addWidget(self._label("Estímulos simultâneos:"))
+        r1 = QHBoxLayout(); r1.setSpacing(12)
+        r1.addWidget(self._lbl("Estímulos simultâneos:"))
         self.spin_est = QSpinBox()
         self.spin_est.setRange(1, 8); self.spin_est.setFixedWidth(70)
-        self.spin_est.setValue(self._cfg.get("estimulos_simultaneos", 1))
+        self.spin_est.setValue(_a_gp("estimulos_simultaneos", 1))
         self.spin_est.valueChanged.connect(self._on_change)
-        est_row.addWidget(self.spin_est); est_row.addStretch()
-        sa.addLayout(est_row)
+        r1.addWidget(self.spin_est); r1.addStretch(); sa.addLayout(r1)
 
-        # Modo de resposta
-        resp_row = QHBoxLayout(); resp_row.setSpacing(12)
-        resp_row.addWidget(self._label("Modo de resposta (múltiplos estímulos):"))
+        r2 = QHBoxLayout(); r2.setSpacing(12)
+        r2.addWidget(self._lbl("Modo de resposta:"))
         self.cmb_resp = QComboBox()
-        self.cmb_resp.addItems(["simples", "qualquer", "todos"])
-        self.cmb_resp.setCurrentText(self._cfg.get("modo_resposta", "simples"))
+        self.cmb_resp.addItems(["qualquer", "todos", "sequencia"])
+        modo_atual = _a_gp("modo_resposta", "qualquer")
+        if modo_atual == "simples": modo_atual = "qualquer"
+        self.cmb_resp.setCurrentText(modo_atual)
         self.cmb_resp.currentTextChanged.connect(self._on_change)
-        resp_row.addWidget(self.cmb_resp); resp_row.addStretch()
-        sa.addLayout(resp_row)
+        r2.addWidget(self.cmb_resp); r2.addStretch(); sa.addLayout(r2)
 
-        # TRC alvo
-        trc_row = QHBoxLayout(); trc_row.setSpacing(12)
-        trc_row.addWidget(self._label("Meta de TRC (ms):"))
+        r3 = QHBoxLayout(); r3.setSpacing(12)
+        r3.addWidget(self._lbl("Meta de TRC (ms):"))
         self.spin_trc = QSpinBox()
         self.spin_trc.setRange(50, 2000); self.spin_trc.setFixedWidth(90)
-        self.spin_trc.setValue(self._cfg.get("limite_trc_ms", 300))
+        self.spin_trc.setValue(_a_gp("limite_trc_ms", 300))
         self.spin_trc.setSuffix(" ms")
         self.spin_trc.valueChanged.connect(self._on_change)
-        trc_row.addWidget(self.spin_trc); trc_row.addStretch()
-        sa.addLayout(trc_row)
+        r3.addWidget(self.spin_trc); r3.addStretch(); sa.addLayout(r3)
 
-        # Espera
-        wait_row = QHBoxLayout(); wait_row.setSpacing(8)
-        wait_row.addWidget(self._label("Espera antes do estímulo:"))
+        r4 = QHBoxLayout(); r4.setSpacing(12)
+        r4.addWidget(self._lbl("Lifespan do estímulo (0 = sem limite):"))
+        self.spin_lifespan_a = QSpinBox()
+        self.spin_lifespan_a.setRange(0, 5000); self.spin_lifespan_a.setFixedWidth(90)
+        self.spin_lifespan_a.setValue(_a_gp("stimulus_lifespan_ms", 0))
+        self.spin_lifespan_a.setSuffix(" ms")
+        self.spin_lifespan_a.setSpecialValueText("Desabilitado")
+        self.spin_lifespan_a.valueChanged.connect(self._on_change)
+        r4.addWidget(self.spin_lifespan_a); r4.addStretch(); sa.addLayout(r4)
+
+        rw = QHBoxLayout(); rw.setSpacing(8)
+        rw.addWidget(self._lbl("Espera antes do estímulo:"))
         self.spin_wait_min = QSpinBox()
-        self.spin_wait_min.setRange(100, 5000); self.spin_wait_min.setFixedWidth(90)
-        self.spin_wait_min.setValue(int(self._cfg.get("wait_min_s", 0.5) * 1000))
+        self.spin_wait_min.setRange(0, 5000); self.spin_wait_min.setFixedWidth(90)
+        self.spin_wait_min.setValue(int(_a_tm("wait_min_s", 0.5) * 1000))
         self.spin_wait_min.setSuffix(" ms")
+        self.spin_wait_min.setSpecialValueText("0 (imediato)")
         self.spin_wait_min.valueChanged.connect(self._on_change)
-        wait_row.addWidget(self.spin_wait_min)
-        wait_row.addWidget(QLabel("até"))
+        rw.addWidget(self.spin_wait_min)
+        rw.addWidget(QLabel("até"))
         self.spin_wait_max = QSpinBox()
-        self.spin_wait_max.setRange(200, 10000); self.spin_wait_max.setFixedWidth(90)
-        self.spin_wait_max.setValue(int(self._cfg.get("wait_max_s", 2.0) * 1000))
+        self.spin_wait_max.setRange(0, 10000); self.spin_wait_max.setFixedWidth(90)
+        self.spin_wait_max.setValue(int(_a_tm("wait_max_s", 2.0) * 1000))
         self.spin_wait_max.setSuffix(" ms")
         self.spin_wait_max.valueChanged.connect(self._on_change)
-        wait_row.addWidget(self.spin_wait_max); wait_row.addStretch()
-        sa.addLayout(wait_row)
+        rw.addWidget(self.spin_wait_max); rw.addStretch(); sa.addLayout(rw)
+
+        rp = QHBoxLayout(); rp.setSpacing(12)
+        rp.addWidget(self._lbl("Penalidade por erro (ms):"))
+        self.spin_pen_a = QSpinBox()
+        self.spin_pen_a.setRange(0, 5000); self.spin_pen_a.setFixedWidth(90)
+        self.spin_pen_a.setValue(_a_gp("penalidade_ms", 1000))
+        self.spin_pen_a.setSuffix(" ms")
+        self.spin_pen_a.valueChanged.connect(self._on_change)
+        rp.addWidget(self.spin_pen_a); rp.addStretch(); sa.addLayout(rp)
 
         lay.addWidget(sec_a)
 
-        # ── Seção: Modo B ─────────────────────────────────────────────────────
-        lay.addWidget(self._section_label("MODO B — Inibição Antecipatória"))
-
+        # ── Modo B ────────────────────────────────────────────────────────────
+        lay.addWidget(section_label("MODO B — Inibição Antecipatória"))
         sec_b = QFrame(); sec_b.setObjectName("configSection")
         sb = QVBoxLayout(sec_b); sb.setContentsMargins(20, 18, 20, 18); sb.setSpacing(14)
 
-        # Teclas
-        sb.addWidget(self._label("Teclas mapeadas (separadas por vírgula):"))
+        sb.addWidget(self._lbl("Teclas mapeadas (separadas por vírgula):"))
         self.inp_teclas_b = QLineEdit(", ".join(self._cfg_b.get("teclas", [])))
         self.inp_teclas_b.setPlaceholderText("Ex: SPACE")
         self.inp_teclas_b.textChanged.connect(self._on_change)
         sb.addWidget(self.inp_teclas_b)
 
-        # Mouse
-        sb.addWidget(self._label("Botões do mouse:"))
-        mouse_row_b = QHBoxLayout(); mouse_row_b.setSpacing(16)
+        sb.addWidget(self._lbl("Botões do mouse:"))
+        mrb = QHBoxLayout(); mrb.setSpacing(16)
         self.chk_mouse_b = {}
         for btn in ["LEFT", "RIGHT", "MIDDLE"]:
             chk = QCheckBox(btn.capitalize())
             chk.setChecked(btn in self._cfg_b.get("mouse_botoes", []))
             chk.stateChanged.connect(self._on_change)
-            self.chk_mouse_b[btn] = chk
-            mouse_row_b.addWidget(chk)
-        mouse_row_b.addStretch()
-        sb.addLayout(mouse_row_b)
+            self.chk_mouse_b[btn] = chk; mrb.addWidget(chk)
+        mrb.addStretch(); sb.addLayout(mrb)
 
-        # NO-GO ratio
-        nogo_row = QHBoxLayout(); nogo_row.setSpacing(12)
-        nogo_row.addWidget(self._label("Proporção de NO-GO:"))
+        rb1 = QHBoxLayout(); rb1.setSpacing(12)
+        rb1.addWidget(self._lbl("Proporção de NO-GO:"))
         self.spin_nogo = QSpinBox()
         self.spin_nogo.setRange(10, 90); self.spin_nogo.setFixedWidth(70)
-        self.spin_nogo.setValue(int((self._cfg_b.get("nogo_ratio", 0.30) * 100)))
+        self.spin_nogo.setValue(int(self._cfg_b.get("nogo_ratio", 0.30) * 100))
         self.spin_nogo.setSuffix(" %")
         self.spin_nogo.valueChanged.connect(self._on_change)
-        nogo_row.addWidget(self.spin_nogo); nogo_row.addStretch()
-        sb.addLayout(nogo_row)
+        rb1.addWidget(self.spin_nogo); rb1.addStretch(); sb.addLayout(rb1)
 
-        # Alert duration
-        alert_row = QHBoxLayout(); alert_row.setSpacing(8)
-        alert_row.addWidget(self._label("Duração do alerta:"))
+        rb2 = QHBoxLayout(); rb2.setSpacing(8)
+        rb2.addWidget(self._lbl("Duração do alerta:"))
         self.spin_alert_min_b = QSpinBox()
         self.spin_alert_min_b.setRange(100, 3000); self.spin_alert_min_b.setFixedWidth(90)
-        self.spin_alert_min_b.setValue(int(self._cfg_b.get("alert_min_ms", 500)))
+        self.spin_alert_min_b.setValue(self._cfg_b.get("alert_min_ms", 500))
         self.spin_alert_min_b.setSuffix(" ms")
         self.spin_alert_min_b.valueChanged.connect(self._on_change)
-        alert_row.addWidget(self.spin_alert_min_b)
-        alert_row.addWidget(QLabel("até"))
+        rb2.addWidget(self.spin_alert_min_b)
+        rb2.addWidget(QLabel("até"))
         self.spin_alert_max_b = QSpinBox()
         self.spin_alert_max_b.setRange(200, 5000); self.spin_alert_max_b.setFixedWidth(90)
-        self.spin_alert_max_b.setValue(int(self._cfg_b.get("alert_max_ms", 1500)))
+        self.spin_alert_max_b.setValue(self._cfg_b.get("alert_max_ms", 1500))
         self.spin_alert_max_b.setSuffix(" ms")
         self.spin_alert_max_b.valueChanged.connect(self._on_change)
-        alert_row.addWidget(self.spin_alert_max_b); alert_row.addStretch()
-        sb.addLayout(alert_row)
+        rb2.addWidget(self.spin_alert_max_b); rb2.addStretch(); sb.addLayout(rb2)
 
-        # False start penalty
-        penalty_row = QHBoxLayout(); penalty_row.setSpacing(12)
-        penalty_row.addWidget(self._label("Penalidade por false start:"))
+        rb3 = QHBoxLayout(); rb3.setSpacing(12)
+        rb3.addWidget(self._lbl("Penalidade por false start:"))
         self.cmb_penalty = QComboBox()
         self.cmb_penalty.addItems(["RESET", "MISS", "BLOCK"])
         self.cmb_penalty.setCurrentText(self._cfg_b.get("false_start_penalty", "RESET"))
         self.cmb_penalty.currentTextChanged.connect(self._on_change)
-        penalty_row.addWidget(self.cmb_penalty); penalty_row.addStretch()
-        sb.addLayout(penalty_row)
+        rb3.addWidget(self.cmb_penalty); rb3.addStretch(); sb.addLayout(rb3)
 
         lay.addWidget(sec_b)
 
-        # ── Seção: Modo C ─────────────────────────────────────────────────────
-        self._cfg_c = {**DEFAULT_CONFIG_C, **config_inicial.get("modo_c", {})}
-        lay.addWidget(self._section_label("MODO C — Periférico Espacial"))
-
+        # ── Modo C ────────────────────────────────────────────────────────────
+        lay.addWidget(section_label("MODO C — Periférico Espacial"))
         sec_c = QFrame(); sec_c.setObjectName("configSection")
         sc = QVBoxLayout(sec_c); sc.setContentsMargins(20, 18, 20, 18); sc.setSpacing(14)
 
-        sc.addWidget(self._label("Teclas de resposta (separadas por vírgula):"))
+        sc.addWidget(self._lbl("Teclas de resposta (separadas por vírgula):"))
         self.inp_teclas_c = QLineEdit(", ".join(self._cfg_c.get("teclas", [])))
         self.inp_teclas_c.setPlaceholderText("Ex: SPACE")
         self.inp_teclas_c.textChanged.connect(self._on_change)
         sc.addWidget(self.inp_teclas_c)
 
-        sc.addWidget(self._label("Botões do mouse:"))
-        mouse_row_c = QHBoxLayout(); mouse_row_c.setSpacing(16)
+        sc.addWidget(self._lbl("Botões do mouse:"))
+        mrc = QHBoxLayout(); mrc.setSpacing(16)
         self.chk_mouse_c = {}
         for btn in ["LEFT", "RIGHT", "MIDDLE"]:
             chk = QCheckBox(btn.capitalize())
             chk.setChecked(btn in self._cfg_c.get("mouse_botoes", []))
             chk.stateChanged.connect(self._on_change)
-            self.chk_mouse_c[btn] = chk
-            mouse_row_c.addWidget(chk)
-        mouse_row_c.addStretch()
-        sc.addLayout(mouse_row_c)
+            self.chk_mouse_c[btn] = chk; mrc.addWidget(chk)
+        mrc.addStretch(); sc.addLayout(mrc)
 
-        grid_row = QHBoxLayout(); grid_row.setSpacing(12)
-        grid_row.addWidget(self._label("Área de jogo (%):"))
+        rc1 = QHBoxLayout(); rc1.setSpacing(12)
+        rc1.addWidget(self._lbl("Área de jogo (%):"))
         self.cmb_grid = QComboBox()
         self.cmb_grid.addItems(["50%", "80%", "100%"])
         self.cmb_grid.setCurrentText(f"{int(self._cfg_c.get('grid_size', 1.0) * 100)}%")
         self.cmb_grid.currentTextChanged.connect(self._on_change)
-        grid_row.addWidget(self.cmb_grid); grid_row.addStretch()
-        sc.addLayout(grid_row)
+        rc1.addWidget(self.cmb_grid); rc1.addStretch(); sc.addLayout(rc1)
 
         self.chk_periph = QCheckBox("Modo periférico (excluir zona foveal central)")
         self.chk_periph.setChecked(self._cfg_c.get("peripheral_only", True))
@@ -710,69 +619,49 @@ class ConfigWidget(QWidget):
         self.chk_fixation.stateChanged.connect(self._on_change)
         sc.addWidget(self.chk_fixation)
 
-        size_row = QHBoxLayout(); size_row.setSpacing(12)
-        size_row.addWidget(self._label("Tamanho do estímulo (px):"))
+        rc2 = QHBoxLayout(); rc2.setSpacing(12)
+        rc2.addWidget(self._lbl("Tamanho do estímulo (px):"))
         self.spin_stim_size = QSpinBox()
         self.spin_stim_size.setRange(8, 120); self.spin_stim_size.setFixedWidth(80)
         self.spin_stim_size.setValue(self._cfg_c.get("stimulus_size", 32))
         self.spin_stim_size.setSuffix(" px")
         self.spin_stim_size.valueChanged.connect(self._on_change)
-        size_row.addWidget(self.spin_stim_size); size_row.addStretch()
-        sc.addLayout(size_row)
+        rc2.addWidget(self.spin_stim_size); rc2.addStretch(); sc.addLayout(rc2)
 
-        life_row = QHBoxLayout(); life_row.setSpacing(12)
-        life_row.addWidget(self._label("Tempo máximo para reagir:"))
-        self.spin_lifespan = QSpinBox()
-        self.spin_lifespan.setRange(200, 3000); self.spin_lifespan.setFixedWidth(90)
-        self.spin_lifespan.setValue(self._cfg_c.get("stimulus_lifespan_ms", 800))
-        self.spin_lifespan.setSuffix(" ms")
-        self.spin_lifespan.valueChanged.connect(self._on_change)
-        life_row.addWidget(self.spin_lifespan); life_row.addStretch()
-        sc.addLayout(life_row)
+        rc3 = QHBoxLayout(); rc3.setSpacing(12)
+        rc3.addWidget(self._lbl("Tempo máximo para reagir:"))
+        self.spin_lifespan_c = QSpinBox()
+        self.spin_lifespan_c.setRange(200, 3000); self.spin_lifespan_c.setFixedWidth(90)
+        self.spin_lifespan_c.setValue(self._cfg_c.get("stimulus_lifespan_ms", 800))
+        self.spin_lifespan_c.setSuffix(" ms")
+        self.spin_lifespan_c.valueChanged.connect(self._on_change)
+        rc3.addWidget(self.spin_lifespan_c); rc3.addStretch(); sc.addLayout(rc3)
 
         lay.addWidget(sec_c)
 
-        # ── Seções placeholder para modos futuros ─────────────────────────────
-        for letra, nome in [("D","Carga Cognitiva"), ("E","Oclusão Estroboscópica"),
-                             ("F","Ghost Mode"), ("G","Resiliência Pós-Erro"),
-                             ("H","Bio-Feedback de Fadiga")]:
-            lay.addWidget(self._section_label(f"MODO {letra} — {nome}"))
+        # ── Placeholders ──────────────────────────────────────────────────────
+        for letra, nome in [
+            ("D","Carga Cognitiva"), ("E","Oclusão Estroboscópica"),
+            ("F","Ghost Mode"), ("G","Resiliência Pós-Erro"), ("H","Bio-Feedback de Fadiga"),
+        ]:
+            lay.addWidget(section_label(f"MODO {letra} — {nome}"))
             sec = QFrame(); sec.setObjectName("configSectionDisabled")
             sl = QVBoxLayout(sec); sl.setContentsMargins(20, 16, 20, 16)
             lbl = QLabel("Configurações disponíveis após implementação do modo.")
             lbl.setStyleSheet(f"font-size:12px; color:{TEXT_DIM}; font-style:italic;")
-            sl.addWidget(lbl)
-            lay.addWidget(sec)
+            sl.addWidget(lbl); lay.addWidget(sec)
 
-        # ── Seção: Geral ──────────────────────────────────────────────────────
-        lay.addWidget(self._section_label("GERAL"))
+        # ── Geral ─────────────────────────────────────────────────────────────
+        lay.addWidget(section_label("GERAL"))
         sec_g = QFrame(); sec_g.setObjectName("configSection")
         sg = QVBoxLayout(sec_g); sg.setContentsMargins(20, 18, 20, 18); sg.setSpacing(14)
-        sg.addWidget(self._label("Duração máxima de sessão (0 = ilimitado):"))
-        dur_row = QHBoxLayout(); dur_row.setSpacing(8)
-        self.spin_dur = QSpinBox()
-        self.spin_dur.setRange(0, 120); self.spin_dur.setFixedWidth(80)
-        self.spin_dur.setValue(0); self.spin_dur.setSuffix(" min")
-        dur_row.addWidget(self.spin_dur); dur_row.addStretch()
-        sg.addLayout(dur_row)
-        sg.addWidget(self._label("Porta do servidor TRNG:"))
-        porta_row = QHBoxLayout(); porta_row.setSpacing(8)
+        sg.addWidget(self._lbl("Porta do servidor CSPRNG:"))
+        rg = QHBoxLayout(); rg.setSpacing(8)
         self.inp_porta = QLineEdit("9999")
         self.inp_porta.setFixedWidth(90)
         self.inp_porta.setValidator(QIntValidator(1024, 65535))
-        porta_row.addWidget(self.inp_porta); porta_row.addStretch()
-        sg.addLayout(porta_row)
+        rg.addWidget(self.inp_porta); rg.addStretch(); sg.addLayout(rg)
         lay.addWidget(sec_g)
-
-        # ── Seção: Aparência ──────────────────────────────────────────────────
-        lay.addWidget(self._section_label("APARÊNCIA"))
-        sec_ap = QFrame(); sec_ap.setObjectName("configSection")
-        sap = QVBoxLayout(sec_ap); sap.setContentsMargins(20, 16, 20, 16)
-        lbl_ap = QLabel("Opções de tema e fonte disponíveis em versão futura.")
-        lbl_ap.setStyleSheet(f"font-size:12px; color:{TEXT_DIM}; font-style:italic;")
-        sap.addWidget(lbl_ap)
-        lay.addWidget(sec_ap)
-
         lay.addStretch()
 
         root = QVBoxLayout(self)
@@ -780,80 +669,64 @@ class ConfigWidget(QWidget):
         root.addWidget(scroll)
         scroll.setWidget(inner)
 
-    def _label(self, texto):
+    def _lbl(self, texto):
         l = QLabel(texto)
         l.setStyleSheet(f"font-size:13px; color:{TEXT_SEC};")
         return l
 
-    def _section_label(self, texto):
-        l = QLabel(texto)
-        l.setStyleSheet(
-            f"font-size:11px; font-weight:600; color:{TEXT_SEC}; letter-spacing:1px;"
-        )
-        return l
-
     def _on_change(self):
-        """Lê os widgets e emite a config atualizada para o app."""
-        teclas_raw = [t.strip().upper() for t in self.inp_teclas.text().split(",") if t.strip()]
-        mouse_raw  = [b for b, chk in self.chk_mouse.items() if chk.isChecked()]
-
+        teclas = [t.strip().upper() for t in self.inp_teclas.text().split(",") if t.strip()]
+        mouse  = [b for b, chk in self.chk_mouse.items() if chk.isChecked()]
+        inputs = (
+            [{"id": f"KEY_{t}", "type": "keyboard", "code": t, "label": t} for t in teclas] +
+            [{"id": f"MOUSE_{b}", "type": "mouse", "code": b, "label": f"🖱{b}"} for b in mouse]
+        )
         cfg_a = {
-            "teclas":                teclas_raw,
-            "mouse_botoes":          mouse_raw,
-            "estimulos_simultaneos": self.spin_est.value(),
-            "modo_resposta":         self.cmb_resp.currentText(),
-            "limite_trc_ms":         self.spin_trc.value(),
-            "wait_min_s":            self.spin_wait_min.value() / 1000,
-            "wait_max_s":            self.spin_wait_max.value() / 1000,
-            "penalidade_ms":         1000,
+            "inputs": inputs,
+            "gameplay": {
+                "estimulos_simultaneos": self.spin_est.value(),
+                "modo_resposta":         self.cmb_resp.currentText(),
+                "limite_trc_ms":         self.spin_trc.value(),
+                "stimulus_lifespan_ms":  self.spin_lifespan_a.value(),
+                "penalidade_ms":         self.spin_pen_a.value(),
+            },
+            "timing": {
+                "wait_min_s":        self.spin_wait_min.value() / 1000,
+                "wait_max_s":        self.spin_wait_max.value() / 1000,
+                "feedback_delay_ms": 900,
+            },
         }
-        self._cfg = cfg_a
-
-        # Modo B config
-        teclas_b_raw = [t.strip().upper() for t in self.inp_teclas_b.text().split(",") if t.strip()]
-        mouse_b_raw  = [b for b, chk in self.chk_mouse_b.items() if chk.isChecked()]
-
         cfg_b = {
-            "teclas":                teclas_b_raw,
-            "mouse_botoes":          mouse_b_raw,
-            "nogo_ratio":            self.spin_nogo.value() / 100.0,
-            "alert_min_ms":          self.spin_alert_min_b.value(),
-            "alert_max_ms":          self.spin_alert_max_b.value(),
-            "false_start_penalty":   self.cmb_penalty.currentText(),
+            "teclas":              [t.strip().upper() for t in self.inp_teclas_b.text().split(",") if t.strip()],
+            "mouse_botoes":        [b for b, chk in self.chk_mouse_b.items() if chk.isChecked()],
+            "nogo_ratio":          self.spin_nogo.value() / 100.0,
+            "alert_min_ms":        self.spin_alert_min_b.value(),
+            "alert_max_ms":        self.spin_alert_max_b.value(),
+            "false_start_penalty": self.cmb_penalty.currentText(),
         }
-
-        if callable(self.config_changed):
-            self.config_changed({"modo_a": cfg_a, "modo_b": cfg_b, "modo_c": self._build_cfg_c()})
-
-    def _build_cfg_c(self) -> dict:
-        return {
+        cfg_c = {
             "teclas":               [t.strip().upper() for t in self.inp_teclas_c.text().split(",") if t.strip()],
             "mouse_botoes":         [b for b, chk in self.chk_mouse_c.items() if chk.isChecked()],
             "grid_size":            int(self.cmb_grid.currentText().replace("%", "")) / 100,
             "peripheral_only":      self.chk_periph.isChecked(),
             "fixation_cross":       self.chk_fixation.isChecked(),
             "stimulus_size":        self.spin_stim_size.value(),
-            "stimulus_lifespan_ms": self.spin_lifespan.value(),
+            "stimulus_lifespan_ms": self.spin_lifespan_c.value(),
         }
+        if callable(self.config_changed):
+            self.config_changed({"modo_a": cfg_a, "modo_b": cfg_b, "modo_c": cfg_c})
 
-    def get_config(self) -> dict:
-        return self._cfg
 
-
-# ── Sidebar de navegação ──────────────────────────────────────────────────────
 class Sidebar(QWidget):
-    def __init__(self, on_nav, on_toggle_fullscreen=None, on_stop_trng=None, on_quit=None, parent=None):
+    def __init__(self, on_nav, on_toggle_fullscreen=None,
+                 on_stop_csprng=None, on_quit=None, parent=None):
         super().__init__(parent)
-        # Slightly wider sidebar to better fit quick-action buttons
         self.setFixedWidth(260)
         self.setStyleSheet(
             f"background-color:{BG_SURFACE}; border-right:1px solid {BORDER};"
         )
         self._btns: dict[str, QPushButton] = {}
         self._on_nav = on_nav
-        self._on_toggle_fullscreen = on_toggle_fullscreen
-        self._on_stop_trng = on_stop_trng
-        self._on_quit = on_quit
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(20, 28, 20, 24); lay.setSpacing(0)
@@ -869,58 +742,39 @@ class Sidebar(QWidget):
         lay.addWidget(sub); lay.addSpacing(32)
         lay.addWidget(divider()); lay.addSpacing(20)
 
-        for key, label in [("home", "  Início"), ("historico", "  Histórico"), ("config", "  Configurações")]:
+        for key, label in [("home","  Início"),("historico","  Histórico"),("config","  Configurações")]:
             btn = QPushButton(label)
-            btn.setFixedHeight(38)
-            btn.setObjectName("btnGhost")
+            btn.setFixedHeight(38); btn.setObjectName("btnGhost")
             btn.clicked.connect((lambda k: lambda: self._nav(k))(key))
             self._btns[key] = btn
             lay.addWidget(btn); lay.addSpacing(4)
 
         lay.addStretch()
-        self._versao = QLabel("v2.0 — Engine Python\nCSPRNG: Hash de Caos")
-        self._versao.setStyleSheet(f"font-size:10px; color:{TEXT_DIM}; line-height:1.6;")
-        lay.addWidget(self._versao)
+        versao = QLabel("v2.0 — Engine Python\nCSPRNG: Hash de Caos")
+        versao.setStyleSheet(f"font-size:10px; color:{TEXT_DIM}; line-height:1.6;")
+        lay.addWidget(versao); lay.addSpacing(8)
 
-        # Quick actions grouped in a separate panel with spacing
-        lay.addSpacing(8)
-        action_frame = QFrame()
-        action_frame.setStyleSheet("background:transparent;")
-        afl = QVBoxLayout(action_frame)
-        afl.setContentsMargins(4, 6, 4, 6)
-        afl.setSpacing(8)
-
-        if self._on_toggle_fullscreen:
-            btn_fs = QPushButton("Tela Cheia")
-            btn_fs.setObjectName("btnGhost")
-            btn_fs.setFixedHeight(40)
-            btn_fs.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            btn_fs.clicked.connect(lambda: self._on_toggle_fullscreen())
-            afl.addWidget(btn_fs)
-        if self._on_stop_trng:
-            btn_stop = QPushButton("Parar TRNG")
-            btn_stop.setObjectName("btnGhost")
-            btn_stop.setFixedHeight(40)
-            btn_stop.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            btn_stop.clicked.connect(lambda: self._on_stop_trng())
-            afl.addWidget(btn_stop)
-        if self._on_quit:
-            btn_quit = QPushButton("Sair")
-            btn_quit.setObjectName("btnDanger")
-            btn_quit.setFixedHeight(40)
-            btn_quit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            btn_quit.clicked.connect(lambda: self._on_quit())
-            afl.addWidget(btn_quit)
-
-        lay.addWidget(action_frame)
-
+        af = QFrame()
+        afl = QVBoxLayout(af)
+        afl.setContentsMargins(4, 6, 4, 6); afl.setSpacing(8)
+        for label, cb, obj in [
+            ("Tela Cheia",    on_toggle_fullscreen, "btnGhost"),
+            ("Parar CSPRNG",  on_stop_csprng,       "btnGhost"),
+            ("Sair",          on_quit,               "btnDanger"),
+        ]:
+            if cb:
+                btn = QPushButton(label)
+                btn.setObjectName(obj); btn.setFixedHeight(40)
+                btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+                btn.clicked.connect(cb)
+                afl.addWidget(btn)
+        lay.addWidget(af)
         self.set_ativo("home")
 
-    def _nav(self, key: str):
-        self.set_ativo(key)
-        self._on_nav(key)
+    def _nav(self, key):
+        self.set_ativo(key); self._on_nav(key)
 
-    def set_ativo(self, key: str):
+    def set_ativo(self, key):
         for k, btn in self._btns.items():
             if k == key:
                 btn.setStyleSheet(
@@ -929,7 +783,6 @@ class Sidebar(QWidget):
                     f"padding:10px 20px; font-size:13px; font-weight:600; text-align:left;"
                 )
             else:
-                btn.setObjectName("btnGhost")
                 btn.setStyleSheet(
                     f"background-color:transparent; color:{TEXT_SEC};"
                     f"border:1px solid {BORDER}; border-radius:8px;"
@@ -937,17 +790,17 @@ class Sidebar(QWidget):
                 )
 
 
-# ── Janela principal ──────────────────────────────────────────────────────────
 class TRACApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("TRAC")
         self.setFixedSize(860, 640)
         self.setStyleSheet(STYLESHEET)
+        self._csprng_proc = None
 
         init_db()
-        cfg_saved = load_config()
-        self._cfg_modo_a = {**DEFAULT_CONFIG,   **cfg_saved.get("modo_a", {})}
+        cfg_saved        = load_config()
+        self._cfg_modo_a = cfg_saved.get("modo_a", {})
         self._cfg_modo_b = {**DEFAULT_CONFIG_B, **cfg_saved.get("modo_b", {})}
         self._cfg_modo_c = {**DEFAULT_CONFIG_C, **cfg_saved.get("modo_c", {})}
 
@@ -956,20 +809,17 @@ class TRACApp(QMainWindow):
         main = QHBoxLayout(root)
         main.setContentsMargins(0, 0, 0, 0); main.setSpacing(0)
 
-        # Sidebar
         self.sidebar = Sidebar(
             on_nav=self._nav,
             on_toggle_fullscreen=self._toggle_fullscreen,
-            on_stop_trng=self._stop_trng,
+            on_stop_csprng=self._stop_csprng,
             on_quit=self._quit_app,
         )
         main.addWidget(self.sidebar)
 
-        # Stack de abas (Home / Histórico / Config) + Modos sobrepostos
         self.area = QStackedWidget()
         main.addWidget(self.area)
 
-        # Abas
         self.home      = HomeWidget(on_modo=self._ir_para_modo)
         self.historico = HistoricoWidget()
         self.config_w  = ConfigWidget({
@@ -983,14 +833,10 @@ class TRACApp(QMainWindow):
         self.area.addWidget(self.historico)
         self.area.addWidget(self.config_w)
 
-        # Widgets dos modos (sem sidebar — tela cheia dentro do area)
         self._modo_a_widget = None
         self._modo_b_widget = None
         self._modo_c_widget = None
         self.area.setCurrentWidget(self.home)
-
-        # track CSPRNG process if started by the app
-        self._csprng_proc = None
 
     def _nav(self, key: str):
         mapping = {"home": self.home, "historico": self.historico, "config": self.config_w}
@@ -1001,36 +847,31 @@ class TRACApp(QMainWindow):
 
     def _ir_para_modo(self, letra: str):
         if letra == "A":
-            # Recria o widget com a config atual para refletir mudanças
             if self._modo_a_widget:
                 self.area.removeWidget(self._modo_a_widget)
                 self._modo_a_widget.deleteLater()
-
             self._modo_a_widget = ModoAGUI(config=self._cfg_modo_a)
             self._modo_a_widget.finished.connect(self._sessao_encerrada)
             self.area.addWidget(self._modo_a_widget)
             self.area.setCurrentWidget(self._modo_a_widget)
             self._modo_a_widget.setFocus()
-            self.sidebar.set_ativo("")   # nenhuma aba ativa durante treino
+            self.sidebar.set_ativo("")
 
         elif letra == "B":
-            # Recria o widget com a config atual para refletir mudanças
             if self._modo_b_widget:
                 self.area.removeWidget(self._modo_b_widget)
                 self._modo_b_widget.deleteLater()
-
             self._modo_b_widget = ModoBGUI(config=self._cfg_modo_b)
             self._modo_b_widget.finished.connect(self._sessao_encerrada)
             self.area.addWidget(self._modo_b_widget)
             self.area.setCurrentWidget(self._modo_b_widget)
             self._modo_b_widget.setFocus()
-            self.sidebar.set_ativo("")   # nenhuma aba ativa durante treino
+            self.sidebar.set_ativo("")
 
         elif letra == "C":
             if self._modo_c_widget:
                 self.area.removeWidget(self._modo_c_widget)
                 self._modo_c_widget.deleteLater()
-
             self._modo_c_widget = ModoCGUI(config=self._cfg_modo_c)
             self._modo_c_widget.finished.connect(self._sessao_encerrada)
             self.area.addWidget(self._modo_c_widget)
@@ -1045,32 +886,15 @@ class TRACApp(QMainWindow):
         self.sidebar.set_ativo("home")
 
     def _on_config_changed(self, cfg: dict):
-        # Suporta dois formatos: direto (para Modo A) ou nested (para ambos)
-        if "modo_a" in cfg and "modo_b" in cfg:
-            self._cfg_modo_a = cfg["modo_a"]
-            self._cfg_modo_b = cfg["modo_b"]
-            self._cfg_modo_c = cfg.get("modo_c", self._cfg_modo_c)
-            cfg_store = cfg
-        else:
-            # Apenas Modo A (compatibilidade)
-            self._cfg_modo_a = cfg
-            cfg_store = load_config()
-            cfg_store["modo_a"] = cfg
-
-        # Persist config to disk
-        save_config(cfg_store)
-
-        # If Modo A is currently active, apply the new config live
+        self._cfg_modo_a = cfg.get("modo_a", self._cfg_modo_a)
+        self._cfg_modo_b = cfg.get("modo_b", self._cfg_modo_b)
+        self._cfg_modo_c = cfg.get("modo_c", self._cfg_modo_c)
+        save_config({"modo_a": self._cfg_modo_a,
+                     "modo_b": self._cfg_modo_b,
+                     "modo_c": self._cfg_modo_c})
         if self._modo_a_widget:
             try:
                 self._modo_a_widget.aplicar_config(self._cfg_modo_a)
-            except Exception:
-                pass
-
-        # If Modo B is currently active, apply the new config live
-        if self._modo_b_widget:
-            try:
-                self._modo_b_widget.cfg = self._cfg_modo_b
             except Exception:
                 pass
 
@@ -1080,60 +904,31 @@ class TRACApp(QMainWindow):
         else:
             self.showFullScreen()
 
-    def _stop_trng(self):
-        # Try to stop CSPRNG started by HomeWidget or by app
-        stopped = False
-        # prefer process tracked on app
-        if getattr(self, '_csprng_proc', None):
-            proc = self._csprng_proc
-            try:
-                proc.terminate()
-                proc.wait(timeout=2)
-            except Exception:
+    def _stop_csprng(self):
+        for proc_attr in (self, self.home):
+            proc = getattr(proc_attr, "_csprng_proc", None)
+            if proc:
                 try:
-                    proc.kill()
+                    proc.terminate(); proc.wait(timeout=2)
                 except Exception:
-                    pass
-            self._csprng_proc = None
-            stopped = True
-
-        # ask home widget to stop if it has a process
+                    try: proc.kill()
+                    except Exception: pass
+                proc_attr._csprng_proc = None
         try:
-            if hasattr(self.home, '_csprng_proc') and self.home._csprng_proc:
-                try:
-                    self.home._csprng_proc.terminate()
-                    self.home._csprng_proc.wait(timeout=2)
-                except Exception:
-                    try:
-                        self.home._csprng_proc.kill()
-                    except Exception:
-                        pass
-                self.home._csprng_proc = None
-                stopped = True
+            self.home.lbl_csprng.setText("● CSPRNG: offline")
+            self.home.lbl_csprng.setStyleSheet(f"font-size:11px; color:{WARNING};")
         except Exception:
             pass
-
-        if stopped:
-            try:
-                self.home.lbl_csprng.setText('● CSPRNG: offline')
-                self.home.lbl_csprng.setStyleSheet(f"font-size:11px; color:{WARNING};")
-            except Exception:
-                pass
 
     def _quit_app(self):
-        # Attempt to stop CSPRNG first
-        try:
-            self._stop_csprng()
-        except Exception:
-            pass
+        try: self._stop_csprng()
+        except Exception: pass
         QApplication.quit()
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-
     palette = QPalette()
     for role, color in [
         (QPalette.ColorRole.Window,          BG_DEEP),
@@ -1148,7 +943,6 @@ if __name__ == "__main__":
     ]:
         palette.setColor(role, QColor(color))
     app.setPalette(palette)
-
     w = TRACApp()
     w.show()
     sys.exit(app.exec())
