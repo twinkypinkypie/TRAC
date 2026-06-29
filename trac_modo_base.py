@@ -276,9 +276,13 @@ class ModoBase(QWidget):
 
     # ── ESC padrão ────────────────────────────────────────────────────────────
     def keyPressEvent(self, event: QKeyEvent):
-        """Intercepta ESC. Subclasses devem chamar super() para manter este comportamento."""
+        """Intercepta ESC e marca como aceito. Outras teclas NÃO são marcadas,
+        permitindo que subclasses as processem normalmente."""
         if event.key() == Qt.Key.Key_Escape:
+            event.accept()
             self._encerrar_base()
+        else:
+            event.ignore()   # essencial: não bloquear teclas das subclasses
 
     def _encerrar_base(self):
         """
